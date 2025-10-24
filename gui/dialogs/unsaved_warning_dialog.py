@@ -8,6 +8,7 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QMovie
+from utils.resource_path import get_gui_resource
 from pathlib import Path
 
 
@@ -31,7 +32,7 @@ class UnsavedWarningDialog(QDialog):
         gif_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # 加载动图
-        gif_path = Path(__file__).parent.parent / "resources" / "images" / "warning_save.gif"
+        gif_path = get_gui_resource("warning_save.gif")
         if gif_path.exists():
             movie = QMovie(str(gif_path))
             gif_label.setMovie(movie)

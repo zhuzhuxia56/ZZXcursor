@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from utils.logger import get_logger
 from core.country_codes import get_country_name, is_valid_country_code
 from utils.app_paths import get_config_file
+from utils.resource_path import get_gui_resource
 
 logger = get_logger("payment_panel")
 
@@ -1024,7 +1025,7 @@ class PaymentPanel(QWidget):
         
         qr_label = QLabel()
         qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        qr_path = Path(__file__).parent.parent / "resources" / "images" / "wechat_qr.jpg"
+        qr_path = get_gui_resource("wechat_qr.jpg")
         if qr_path.exists():
             pixmap = QPixmap(str(qr_path))
             scaled_pixmap = pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
@@ -1044,7 +1045,7 @@ class PaymentPanel(QWidget):
         
         gif_label = QLabel()
         gif_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        gif_path = Path(__file__).parent.parent / "resources" / "images" / "virtual_card_guide.gif"
+        gif_path = get_gui_resource("virtual_card_guide.gif")
         if gif_path.exists():
             movie = QMovie(str(gif_path))
             movie.setScaledSize(movie.scaledSize().scaled(350, 350, Qt.AspectRatioMode.KeepAspectRatio))

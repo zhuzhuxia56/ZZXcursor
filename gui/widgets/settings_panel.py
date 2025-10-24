@@ -18,6 +18,7 @@ from PyQt6.QtGui import QFont, QMovie
 from utils.logger import get_logger
 from utils.theme_manager import get_theme_manager
 from utils.app_paths import get_config_file
+from utils.resource_path import get_gui_resource
 
 logger = get_logger("settings_panel")
 
@@ -213,7 +214,7 @@ class SettingsPanel(QWidget):
         gif_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # 加载并播放 GIF
-        gif_path = Path(__file__).parent.parent / "resources" / "images" / "zhuzhuxia.gif"
+        gif_path = get_gui_resource("zhuzhuxia.gif")
         if gif_path.exists():
             movie = QMovie(str(gif_path))
             # 设置缩放大小
@@ -428,7 +429,7 @@ class SettingsPanel(QWidget):
         self.qr_image_label.setStyleSheet("border: 2px solid #ddd; border-radius: 8px; padding: 5px; background: white;")
         
         # ⭐ 加载二维码图片（使用软件内部资源路径）
-        qr_path = Path(__file__).parent.parent / "resources" / "images" / "wechat_qr.jpg"
+        qr_path = get_gui_resource("wechat_qr.jpg")
         if qr_path.exists():
             pixmap = QPixmap(str(qr_path))
             scaled_pixmap = pixmap.scaled(180, 180, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
@@ -572,7 +573,7 @@ class SettingsPanel(QWidget):
                 # 左侧：动图
                 gif_label = QLabel()
                 gif_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                gif_path = Path(__file__).parent.parent / "resources" / "images" / "warning_save.gif"
+                gif_path = get_gui_resource("warning_save.gif")
                 if gif_path.exists():
                     movie = QMovie(str(gif_path))
                     movie.setScaledSize(QSize(150, 150))

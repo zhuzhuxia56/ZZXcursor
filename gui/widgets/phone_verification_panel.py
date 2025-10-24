@@ -18,6 +18,7 @@ from PyQt6.QtGui import QFont, QMovie
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from utils.logger import get_logger
+from utils.resource_path import get_gui_resource
 from utils.app_paths import get_config_file
 
 logger = get_logger("phone_verification_panel")
@@ -144,7 +145,7 @@ class PhoneVerificationPanel(QWidget):
         gif_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # 加载并播放 GIF
-        gif_path = Path(__file__).parent.parent / "resources" / "images" / "suggest_not_do.gif"
+        gif_path = get_gui_resource("suggest_not_do.gif")
         if gif_path.exists():
             movie = QMovie(str(gif_path))
             # 设置缩放大小

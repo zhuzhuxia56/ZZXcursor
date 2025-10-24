@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from utils.logger import get_logger
 from utils.app_paths import get_config_file
+from utils.resource_path import get_gui_resource
 
 logger = get_logger("email_test_panel")
 
@@ -205,7 +206,7 @@ class EmailTestPanel(QWidget):
         gif_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # 加载并播放 GIF
-        gif_path = Path(__file__).parent.parent / "resources" / "images" / "watch_you_fill.gif"
+        gif_path = get_gui_resource("watch_you_fill.gif")
         if gif_path.exists():
             movie = QMovie(str(gif_path))
             # 设置缩放大小（调大一些）

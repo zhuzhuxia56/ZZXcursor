@@ -14,6 +14,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSize, QPropertyAnimation, QEas
 from PyQt6.QtGui import QMovie, QFont
 
 from utils.logger import get_logger
+from utils.resource_path import get_gui_resource
 
 logger = get_logger("batch_refresh_dialog")
 
@@ -83,7 +84,7 @@ class BatchRefreshDialog(QDialog):
         # 加载动图
         try:
             from pathlib import Path
-            gif_path = Path(__file__).parent.parent / "resources" / "images" / "A17.gif"
+            gif_path = get_gui_resource("A17.gif")
             if gif_path.exists():
                 self.movie = QMovie(str(gif_path))
                 # ⭐ 放大到280x280填充左侧
