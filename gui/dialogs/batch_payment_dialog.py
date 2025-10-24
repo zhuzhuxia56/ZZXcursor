@@ -205,12 +205,11 @@ class PaymentWorker(QThread):
                 cookie_js = f"document.cookie = 'WorkosCursorSessionToken={cookie_value}; path=/; domain=.cursor.com';"
                 tab.run_js(cookie_js)
             
-            # 3. 访问Dashboard页面
-            self.log("访问 Dashboard 页面...")
-            tab.get("https://cursor.com/cn/dashboard?tab=overview")
-            time.sleep(5)
+            # 3. 验证登录状态（访问简单页面即可）
+            self.log("验证登录状态...")
+            tab.get("https://cursor.com/")
+            time.sleep(2)
             
-            # 4. 检查登录状态
             current_url = tab.url
             self.log(f"当前页面: {current_url}")
             
@@ -218,23 +217,16 @@ class PaymentWorker(QThread):
             if "authenticator" in current_url or "sign-in" in current_url or "login" in current_url:
                 raise Exception(f"Token无效或过期，无法登录")
             
-            # 如果成功停留在dashboard页面
-            if "dashboard" in current_url:
-                self.log(f"✅ 登录成功: {account['email']}")
-                
-                # 检测并处理 Data Sharing 页面（使用与自动注册相同的方法）
-                self.log("检测 Data Sharing 页面...")
-                try:
-                    from core.registration_steps import RegistrationSteps
-                    RegistrationSteps.handle_data_sharing_page(tab)
-                    self.log("✅ Data Sharing 页面处理完成")
-                except Exception as e:
-                    self.log(f"处理 Data Sharing 页面时出错: {e}")
-                
-                return browser
-            else:
-                self.log(f"⚠️ 未能进入Dashboard，当前URL: {current_url}")
-                raise Exception("未能进入Dashboard页面")
+            self.log(f"✅ 登录成功: {account['email']}")
+            
+            # 处理可能的 Data Sharing 页面
+            try:
+                from core.registration_steps import RegistrationSteps
+                RegistrationSteps.handle_data_sharing_page(tab)
+            except Exception as e:
+                self.log(f"检测 Data Sharing 页面: {e}")
+            
+            return browser
             
         except Exception as e:
             self.log(f"❌ 登录失败: {e}")
@@ -246,13 +238,10 @@ class PaymentWorker(QThread):
         tab = browser.latest_tab
         
         try:
-            # 1. 已经在Dashboard页面，直接查找试用按钮
-            self.log("检查Dashboard页面...")
-            
-            # 2. 点击 "Free 7-day trial" 按钮（复用现有方法）
-            self.log("查找并点击 Free Trial 按钮...")
+            # ⭐ 优化：直接获取并访问绑卡页面（API 会自动处理）
+            self.log("获取 Stripe 绑卡页面...")
             if not PaymentHandler.click_start_trial_button(tab):
-                self.log(f"⚠️ 未找到试用按钮（可能已绑卡或已使用试用）")
+                self.log(f"⚠️ 无法获取绑卡页面（可能已绑卡或已使用试用）")
                 return (False, False)
             
             # 3. 填写Stripe支付信息（复用现有方法，返回元组）
