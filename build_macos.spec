@@ -22,6 +22,9 @@ urllib3_datas, urllib3_binaries, urllib3_hiddenimports = collect_all('urllib3')
 drissionpage_datas, drissionpage_binaries, drissionpage_hiddenimports = collect_all('DrissionPage')
 jwt_datas, jwt_binaries, jwt_hiddenimports = collect_all('jwt')
 loguru_datas, loguru_binaries, loguru_hiddenimports = collect_all('loguru')
+cryptography_datas, cryptography_binaries, cryptography_hiddenimports = collect_all('cryptography')
+dateutil_datas, dateutil_binaries, dateutil_hiddenimports = collect_all('dateutil')
+colorama_datas, colorama_binaries, colorama_hiddenimports = collect_all('colorama')
 
 datas = [
     # GUI资源文件（图标、样式表等）
@@ -36,6 +39,9 @@ datas += urllib3_datas
 datas += drissionpage_datas
 datas += jwt_datas
 datas += loguru_datas
+datas += cryptography_datas
+datas += dateutil_datas
+datas += colorama_datas
 
 # 添加所有二进制文件
 binaries = []
@@ -44,6 +50,9 @@ binaries += urllib3_binaries
 binaries += drissionpage_binaries
 binaries += jwt_binaries
 binaries += loguru_binaries
+binaries += cryptography_binaries
+binaries += dateutil_binaries
+binaries += colorama_binaries
 
 # 收集所有隐藏导入（移除 Windows 特定的）
 hiddenimports = [
@@ -111,7 +120,8 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=(hiddenimports + requests_hiddenimports + urllib3_hiddenimports + 
-                   drissionpage_hiddenimports + jwt_hiddenimports + loguru_hiddenimports),
+                   drissionpage_hiddenimports + jwt_hiddenimports + loguru_hiddenimports +
+                   cryptography_hiddenimports + dateutil_hiddenimports + colorama_hiddenimports),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
