@@ -85,6 +85,10 @@ hiddenimports = [
     'urllib3.connection',
     'urllib3.exceptions',
     
+    # 日期时间处理
+    'dateutil',
+    'dateutil.parser',
+    
     # 日志
     'loguru',
     
