@@ -446,14 +446,15 @@ class CursorAutoRegister:
             tuple: (是否成功, 是否有支付警告) 或 bool（兼容旧版）
         """
         try:
-            # 导航到 Dashboard
-            if not PaymentHandler.navigate_to_billing(self.tab):
-                logger.warning("导航到绑卡页面失败")
-                return (False, False)
+            # ⭐ 优化：直接通过 API 获取绑卡页面，跳过 Dashboard
+            # 不再需要 navigate_to_billing，API 会自动处理
+            logger.info("\n" + "="*60)
+            logger.info("步骤11: 获取并访问绑卡页面")
+            logger.info("="*60)
             
-            # 点击 "Start 7-day Free Trial" 按钮
+            # 获取并访问 Stripe 绑卡页面（API 优先，自动包含 SessionToken 处理）
             if not PaymentHandler.click_start_trial_button(self.tab):
-                logger.warning("未找到 Trial 按钮或未跳转到 Stripe")
+                logger.warning("未能获取或访问绑卡页面")
                 return (False, False)
             
             # 填写 Stripe 支付信息（返回元组）

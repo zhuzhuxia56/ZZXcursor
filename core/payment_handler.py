@@ -260,6 +260,17 @@ class PaymentHandler:
             import urllib.parse
             from .deep_token_getter import DeepTokenGetter
             
+            # 0. 确保已访问 cursor.com（让浏览器有 Cookie）
+            current_url = tab.url
+            if not current_url or 'cursor.com' not in current_url:
+                logger.info("📍 先访问 cursor.com 以确保 Cookie 存在...")
+                try:
+                    tab.get("https://cursor.com/", timeout=15)
+                    import time
+                    time.sleep(2)
+                except Exception as e:
+                    logger.warning(f"访问 cursor.com 失败: {e}")
+            
             # 1. 从 Cookie 获取 SessionToken
             session_token = DeepTokenGetter.get_session_token_from_cookies(tab)
             if not session_token:
