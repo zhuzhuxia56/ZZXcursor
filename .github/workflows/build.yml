@@ -1,0 +1,187 @@
+name: Build and Package
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ created ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build-windows:
+    name: 构建 Windows 版本
+    runs-on: windows-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: 检查图标文件
+      run: |
+        if (Test-Path "ZZX.ico") {
+          Write-Host "✅ 找到 Windows 图标文件"
+        } else {
+          Write-Host "⚠️  警告: 未找到 ZZX.ico"
+        }
+      shell: pwsh
+    
+    - name: 打包 Windows 应用
+      run: |
+        Write-Host "开始打包 Windows 版本..."
+        pyinstaller build.spec --clean
+      shell: pwsh
+    
+    - name: 检查打包结果
+      run: |
+        if (Test-Path "dist\Zzx Cursor Auto Manager\Zzx Cursor Auto Manager.exe") {
+          Write-Host "✅ Windows 打包成功"
+          Get-ChildItem "dist\Zzx Cursor Auto Manager" -Recurse | Measure-Object -Property Length -Sum | Select-Object @{Name="Size(MB)";Expression={[math]::Round($_.Sum/1MB,2)}}
+        } else {
+          Write-Host "❌ Windows 打包失败"
+          exit 1
+        }
+      shell: pwsh
+    
+    - name: 压缩 Windows 便携版
+      run: |
+        Compress-Archive -Path "dist\Zzx Cursor Auto Manager" -DestinationPath "Zzx-Cursor-Auto-Windows-Portable.zip"
+      shell: pwsh
+    
+    - name: 上传 Windows 构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-portable
+        path: Zzx-Cursor-Auto-Windows-Portable.zip
+        retention-days: 30
+    
+    - name: 上传 Windows 文件夹
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-folder
+        path: dist/Zzx Cursor Auto Manager/
+        retention-days: 30
+
+  build-macos:
+    name: 构建 macOS 版本
+    runs-on: macos-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_macos.txt
+    
+    - name: 创建 macOS 图标
+      run: |
+        echo "检查图标文件..."
+        if [ -f "ZZX.ico" ]; then
+          echo "✅ 找到源图标文件 ZZX.ico"
+          
+          if [ ! -f "ZZX.icns" ]; then
+            echo "⚠️  未找到 ZZX.icns，尝试自动生成..."
+            
+            # 尝试使用脚本生成
+            if [ -f "create_macos_icon.sh" ]; then
+              chmod +x create_macos_icon.sh
+              ./create_macos_icon.sh || echo "自动生成失败，将不使用图标"
+            else
+              echo "未找到生成脚本，跳过图标生成"
+            fi
+          else
+            echo "✅ 找到 ZZX.icns"
+          fi
+        else
+          echo "⚠️  警告: 未找到 ZZX.ico"
+        fi
+    
+    - name: 打包 macOS 应用
+      run: |
+        echo "开始打包 macOS 版本..."
+        chmod +x build_macos.sh
+        ./build_macos.sh
+    
+    - name: 检查打包结果
+      run: |
+        if [ -d "dist/Zzx Cursor Auto Manager.app" ]; then
+          echo "✅ macOS 打包成功"
+          du -sh "dist/Zzx Cursor Auto Manager.app"
+        else
+          echo "❌ macOS 打包失败"
+          exit 1
+        fi
+    
+    - name: 创建 DMG 安装包（可选）
+      run: |
+        echo "创建 DMG 安装包..."
+        # 使用 create-dmg 或简单压缩
+        cd dist
+        hdiutil create -volname "Zzx Cursor Auto Manager" -srcfolder "Zzx Cursor Auto Manager.app" -ov -format UDZO "Zzx-Cursor-Auto-macOS.dmg" || {
+          echo "DMG 创建失败，使用 ZIP 压缩"
+          zip -r "Zzx-Cursor-Auto-macOS.zip" "Zzx Cursor Auto Manager.app"
+        }
+    
+    - name: 上传 macOS 构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-app
+        path: |
+          dist/*.dmg
+          dist/*.zip
+        retention-days: 30
+    
+    - name: 移除隔离属性（本地测试用）
+      if: success()
+      run: |
+        xattr -cr "dist/Zzx Cursor Auto Manager.app" || true
+
+  # 如果是 Release，自动上传到 Release
+  upload-release:
+    name: 上传到 Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: 下载 Windows 构建产物
+      uses: actions/download-artifact@v4
+      with:
+        name: windows-portable
+        path: ./artifacts
+    
+    - name: 下载 macOS 构建产物
+      uses: actions/download-artifact@v4
+      with:
+        name: macos-app
+        path: ./artifacts
+    
+    - name: 上传到 Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./artifacts/Zzx-Cursor-Auto-Windows-Portable.zip
+          ./artifacts/*.dmg
+          ./artifacts/*.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

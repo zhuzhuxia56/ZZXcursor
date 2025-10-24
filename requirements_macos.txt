@@ -1,0 +1,26 @@
+# ========== 核心依赖 - macOS 版本 ==========
+# Qt 框架（PyQt6）
+PyQt6>=6.6.0
+
+# 浏览器自动化
+DrissionPage==4.1.1.2
+colorama==0.4.6
+
+# 工具库
+cryptography>=41.0.0
+pyjwt>=2.8.0
+requests>=2.31.0
+loguru>=0.7.0
+
+# macOS 不需要 pywin32（这是 Windows 特定的）
+
+# 打包工具
+pyinstaller>=6.0.0
+
+# ========== 可选依赖 ==========
+# 如果打包时提示缺少，可以添加：
+# psutil>=5.9.0
+# lxml>=4.9.0
+# openpyxl>=3.1.0
+# pillow>=10.0.0
+

@@ -1,0 +1,44 @@
+{
+  "email": {
+    "domain": "",
+    "receiving_email": "",
+    "receiving_email_pin": ""
+  },
+  "phone_verification": {
+    "enabled": false,
+    "custom_code": ""
+  },
+  "payment_binding": {
+    "enabled": false,
+    "auto_fill": false,
+    "card_mode": "import",
+    "auto_gen_unlocked": false
+  },
+  "browser": {
+    "incognito_mode": true
+  },
+  "theme": {
+    "current_theme": "light",
+    "auto_switch": false,
+    "dark_start_time": "19:00",
+    "light_start_time": "07:00"
+  },
+  "ui": {
+    "enable_animations": true,
+    "animation_speed": "normal",
+    "reduce_motion": false
+  },
+  "performance": {
+    "batch_concurrent": 2,
+    "card_animation_threshold": 50
+  },
+  "auto_detect": {
+    "enabled": true,
+    "interval": 30
+  },
+  "license": {
+    "activated": false,
+    "machine_id": ""
+  }
+}
+

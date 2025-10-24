@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# PyInstaller
+*.spec.bak
+*.manifest
+*.spec~
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志和数据（运行时生成）
+data/logs/
+data/accounts.db
+data/.key
+*.log
+
+# 打包输出
+output/
+*.exe
+*.dmg
+*.zip
+*.tar.gz
+
+# 临时文件
+*.tmp
+*.temp
+temp/
+tmp/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# 测试覆盖率
+.coverage
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 环境变量
+.env
+.env.local
+
+# 生成的文档（保留源文档）
+# 但是保留这些新生成的文档
+!打包问题排查报告.md
+!打包前检查清单.md
+!如何创建macOS图标.md
+!打包说明_README.md
+!修改摘要.md
