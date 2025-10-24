@@ -302,6 +302,9 @@ class PaymentHandler:
             if response.status_code == 200:
                 checkout_url = response.text.strip()
                 
+                # 去除可能的引号
+                checkout_url = checkout_url.strip('"').strip("'")
+                
                 if "checkout.stripe.com" in checkout_url:
                     logger.info("✅ 成功获取 Stripe 绑卡页面 URL!")
                     logger.info(f"🔗 URL: {checkout_url[:80]}...")
