@@ -243,6 +243,91 @@ class PaymentHandler:
     """绑卡支付处理器"""
     
     @staticmethod
+    def get_checkout_url_by_api(tab, tier: str = "pro") -> tuple:
+        """
+        通过 API 获取 Stripe 绑卡页面 URL
+        
+        Args:
+            tab: DrissionPage 的 tab 对象
+            tier: 订阅等级（pro/business/hobby）
+        
+        Returns:
+            tuple: (成功与否, URL或错误信息)
+        """
+        logger.info(f"\n通过 API 获取绑卡页面 URL（tier={tier}）...")
+        
+        try:
+            import urllib.parse
+            from .deep_token_getter import DeepTokenGetter
+            
+            # 1. 从 Cookie 获取 SessionToken
+            session_token = DeepTokenGetter.get_session_token_from_cookies(tab)
+            if not session_token:
+                logger.warning("❌ 未找到 SessionToken，无法使用 API 方式")
+                return False, "未找到 SessionToken"
+            
+            logger.info(f"✅ 获取到 SessionToken: {session_token[:50]}...")
+            
+            # 2. URL 编码 SessionToken
+            encoded_token = session_token
+            if '::' in session_token and '%3A%3A' not in session_token:
+                encoded_token = urllib.parse.quote(session_token, safe='')
+            
+            # 3. 调用 API
+            api_url = "https://cursor.com/api/checkout"
+            
+            headers = {
+                "Accept": "application/json, */*",
+                "Content-Type": "application/json",
+                "Origin": "https://cursor.com",
+                "Referer": "https://cursor.com/settings",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Cookie": f"WorkosCursorSessionToken={encoded_token}",
+            }
+            
+            data = {
+                "allowAutomaticPayment": True,
+                "allowTrial": True,
+                "tier": tier
+            }
+            
+            logger.info(f"📤 调用 API: {api_url}")
+            logger.info(f"📦 请求参数: tier={tier}")
+            
+            import requests
+            response = requests.post(api_url, json=data, headers=headers, timeout=15)
+            
+            logger.info(f"📥 响应状态码: {response.status_code}")
+            
+            if response.status_code == 200:
+                checkout_url = response.text.strip()
+                
+                if "checkout.stripe.com" in checkout_url:
+                    logger.info("✅ 成功获取 Stripe 绑卡页面 URL!")
+                    logger.info(f"🔗 URL: {checkout_url[:80]}...")
+                    return True, checkout_url
+                else:
+                    logger.warning(f"⚠️ API 返回的 URL 格式异常: {checkout_url}")
+                    return False, "URL 格式不正确"
+            
+            elif response.status_code == 401:
+                logger.warning("❌ API 认证失败（401）")
+                return False, "SessionToken 无效或已过期"
+            
+            else:
+                logger.warning(f"❌ API 请求失败: HTTP {response.status_code}")
+                try:
+                    error_text = response.text[:200]
+                    logger.warning(f"错误详情: {error_text}")
+                except:
+                    pass
+                return False, f"HTTP {response.status_code}"
+        
+        except Exception as e:
+            logger.error(f"❌ API 调用异常: {e}")
+            return False, str(e)
+    
+    @staticmethod
     def navigate_to_billing(tab) -> bool:
         """
         导航到绑卡页面（Dashboard）
@@ -281,7 +366,9 @@ class PaymentHandler:
     @staticmethod
     def click_start_trial_button(tab) -> bool:
         """
-        点击 "Start 7-day Free Trial" 按钮
+        获取并访问 Stripe 绑卡页面
+        
+        优先使用 API 方式获取 URL，失败则尝试点击按钮
         
         Args:
             tab: DrissionPage 的 tab 对象
@@ -289,48 +376,65 @@ class PaymentHandler:
         Returns:
             bool: 是否成功
         """
-        logger.info("\n查找 'Free 7-day trial' 按钮...")
+        logger.info("\n" + "="*60)
+        logger.info("获取 Stripe 绑卡页面")
+        logger.info("="*60)
+        
+        # ⭐ 方法1: 通过 API 获取（推荐）
+        logger.info("\n🚀 方法1: 尝试通过 API 获取绑卡页面...")
+        success, result = PaymentHandler.get_checkout_url_by_api(tab, tier="pro")
+        
+        if success:
+            checkout_url = result
+            logger.info(f"✅ API 方式成功！直接访问绑卡页面")
+            logger.info(f"🔗 URL: {checkout_url[:80]}...")
+            
+            # 直接访问 Stripe 绑卡页面
+            try:
+                tab.get(checkout_url, timeout=30)
+                time.sleep(3)
+                
+                # 验证是否成功到达
+                if "stripe.com" in tab.url or "checkout" in tab.url:
+                    logger.info("✅ 已成功进入 Stripe 绑卡页面！")
+                    return True
+                else:
+                    logger.warning(f"⚠️ 访问后页面不对，当前: {tab.url}")
+                    return False
+            except Exception as e:
+                logger.error(f"访问绑卡页面失败: {e}")
+                return False
+        
+        # ⭐ 方法2: API 失败，尝试点击按钮（备用方案）
+        logger.warning(f"⚠️ API 方式失败: {result}")
+        logger.info("\n🔄 方法2: 尝试通过点击按钮...")
         
         trial_button = None
         
-        # 方法1: 通过精确文本查找
+        # 查找按钮（timeout=6秒）
         try:
-            trial_button = tab.ele("text:Free 7-day trial", timeout=10)
+            trial_button = tab.ele("text:Free 7-day trial", timeout=6)
             if trial_button:
                 logger.info("✅ 通过文本找到 Trial 按钮")
         except:
             pass
         
-        # 方法2: 通过备用文本查找
         if not trial_button:
             try:
-                trial_button = tab.ele("text:Start 7-day Free Trial", timeout=10)
+                trial_button = tab.ele("text:Start 7-day Free Trial", timeout=6)
                 if trial_button:
                     logger.info("✅ 通过备用文本找到 Trial 按钮")
             except:
                 pass
         
-        # 方法3: 通过模糊匹配查找（包含 "trial" 关键词的按钮）
         if not trial_button:
             try:
-                buttons = tab.eles("tag:button", timeout=10)
+                buttons = tab.eles("tag:button", timeout=6)
                 for btn in buttons:
                     btn_text = btn.text.lower()
                     if "trial" in btn_text or "试用" in btn_text:
                         trial_button = btn
                         logger.info(f"✅ 通过模糊匹配找到按钮: {btn.text}")
-                        break
-            except:
-                pass
-        
-        # 方法4: 通过 class 查找
-        if not trial_button:
-            try:
-                buttons = tab.eles("@class=dashboard-primary-button", timeout=10)
-                for btn in buttons:
-                    if "trial" in btn.text.lower() or "试用" in btn.text or "free" in btn.text.lower():
-                        trial_button = btn
-                        logger.info(f"✅ 通过 class 找到按钮: {btn.text}")
                         break
             except:
                 pass
@@ -350,7 +454,6 @@ class PaymentHandler:
                     return True
                 time.sleep(1)
             
-            # 检查是否到达 Stripe 页面
             if "stripe.com" in tab.url or "checkout" in tab.url:
                 logger.info("✅ 检测到 Stripe 支付页面")
                 return True
@@ -358,12 +461,11 @@ class PaymentHandler:
                 logger.warning(f"⚠️ 未跳转到支付页面，当前URL: {tab.url}")
                 return False
         else:
-            logger.warning("⚠️ 未找到 'Free 7-day trial' 按钮")
+            logger.warning("❌ 未找到 'Free 7-day trial' 按钮")
             logger.info("💡 可能原因：")
             logger.info("  - 已有付费订阅")
             logger.info("  - 已使用过免费试用")
             logger.info("  - 页面加载未完成")
-            logger.info("  - 按钮文本已更改")
             return False
     
     @staticmethod
