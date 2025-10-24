@@ -219,12 +219,8 @@ class PaymentWorker(QThread):
             
             self.log(f"✅ 登录成功: {account['email']}")
             
-            # 处理可能的 Data Sharing 页面
-            try:
-                from core.registration_steps import RegistrationSteps
-                RegistrationSteps.handle_data_sharing_page(tab)
-            except Exception as e:
-                self.log(f"检测 Data Sharing 页面: {e}")
+            # ⭐ 批量绑卡不需要处理 Data Sharing（账号已登录过）
+            # Data Sharing 只在新注册账号第一次登录时出现
             
             return browser
             
