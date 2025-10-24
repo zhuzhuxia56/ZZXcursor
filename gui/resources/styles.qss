@@ -431,7 +431,7 @@ QCheckBox::indicator:hover {
 QCheckBox::indicator:checked {
     background-color: #ff9a9e;
     border-color: #ff9a9e;
-    image: url(./gui/resources/check.svg);
+    image: url(gui/resources/check.svg);
 }
 
 QCheckBox::indicator:checked:hover {
@@ -714,7 +714,7 @@ QToolTip {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
         stop:0 #ff9a9e, stop:1 #ff758c);  /* ⭐ 渐变粉色 */
     border: 2px solid #ff9a9e;
-    image: url(./gui/resources/check.svg);
+    image: url(gui/resources/check.svg);
 }
 
 #AccountCard QCheckBox::indicator:checked:hover {
