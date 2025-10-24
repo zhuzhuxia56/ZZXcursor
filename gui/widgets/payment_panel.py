@@ -50,6 +50,15 @@ class PaymentPanel(QWidget):
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._refresh_card_count)
         self.refresh_timer.start(2000)  # 每2秒刷新一次
+        
+        # ⭐ 监听卡池更新信号（删除后立即刷新）
+        try:
+            from core.card_pool_manager import get_card_pool_manager
+            card_manager = get_card_pool_manager()
+            card_manager.cards_updated.connect(self._on_card_pool_updated)
+            logger.info("✅ 已连接卡池更新信号")
+        except Exception as e:
+            logger.warning(f"连接卡池信号失败: {e}")
     
     def init_ui(self):
         """初始化界面"""
@@ -1077,6 +1086,14 @@ class PaymentPanel(QWidget):
         layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         
         dialog.exec()
+    
+    def _on_card_pool_updated(self, remaining_count: int):
+        """卡池更新时的回调（立即刷新）"""
+        try:
+            self.card_count_label.setText(f"已导入: {remaining_count} 组")
+            logger.info(f"✅ 卡池已更新，剩余: {remaining_count} 组")
+        except Exception as e:
+            logger.error(f"更新卡号显示失败: {e}")
     
     def _refresh_card_count(self):
         """刷新卡号数量显示（定期调用）"""
