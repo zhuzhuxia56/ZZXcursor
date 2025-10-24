@@ -234,10 +234,20 @@ class PaymentWorker(QThread):
         tab = browser.latest_tab
         
         try:
+            # ⭐ 检查暂停状态
+            if not self.is_running:
+                self.log("⏸️ 任务已暂停")
+                return (False, False)
+            
             # ⭐ 优化：直接获取并访问绑卡页面（API 会自动处理）
             self.log("获取 Stripe 绑卡页面...")
             if not PaymentHandler.click_start_trial_button(tab):
                 self.log(f"⚠️ 无法获取绑卡页面（可能已绑卡或已使用试用）")
+                return (False, False)
+            
+            # 再次检查暂停状态
+            if not self.is_running:
+                self.log("⏸️ 任务已暂停")
                 return (False, False)
             
             # 3. 填写Stripe支付信息（复用现有方法，返回元组）
