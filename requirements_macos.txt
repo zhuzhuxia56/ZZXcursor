@@ -11,6 +11,7 @@ cryptography>=41.0.0
 pyjwt>=2.8.0
 requests>=2.31.0
 loguru>=0.7.0
+python-dateutil>=2.8.2
 
 # macOS 不需要 pywin32（这是 Windows 特定的）
 

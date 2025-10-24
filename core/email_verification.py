@@ -232,9 +232,13 @@ class EmailVerificationHandler:
                                         mail_timestamp = int(mail_date)
                                     else:
                                         # 尝试解析时间字符串
-                                        from dateutil import parser
-                                        parsed_date = parser.parse(mail_date)
-                                        mail_timestamp = int(parsed_date.timestamp())
+                                        try:
+                                            from dateutil import parser
+                                            parsed_date = parser.parse(mail_date)
+                                            mail_timestamp = int(parsed_date.timestamp())
+                                        except ImportError:
+                                            logger.warning("⚠️ dateutil 未安装，跳过时间解析")
+                                            continue  # 无法解析时间，继续处理此邮件
                                     
                                     current_timestamp = int(time.time())
                                     time_diff_seconds = current_timestamp - mail_timestamp
@@ -248,6 +252,9 @@ class EmailVerificationHandler:
                                     elif time_diff_minutes < 0:
                                         logger.warning(f"❌ 邮件时间异常（来自未来？），跳过")
                                         continue
+                                except ImportError:
+                                    logger.warning("⚠️ dateutil 未安装，无法解析时间，继续处理此邮件")
+                                    # 不中断流程，继续处理邮件
                                 except Exception as e:
                                     logger.warning(f"⚠️ 解析邮件时间失败: {e}")
                                     logger.warning(f"   原始时间: {mail_date}")
