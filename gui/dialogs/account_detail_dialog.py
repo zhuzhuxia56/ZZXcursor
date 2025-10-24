@@ -666,7 +666,9 @@ class AccountDetailDialog(AnimatedDialog):
             
             # 临时提示
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "提示", "✅ 加密 Token 已复制到剪贴板")
+            # 显示 Toast 提示（2秒自动消失，无声）
+            from gui.widgets.toast_notification import show_toast
+            show_toast(self, "✅ 加密 Token 已复制到剪贴板", duration=2000, success=True)
     
     def show_refreshing_hint(self):
         """显示刷新提示"""
@@ -784,16 +786,15 @@ class AccountDetailDialog(AnimatedDialog):
                 clipboard = QApplication.clipboard()
                 clipboard.setText(email)
                 
-                # 显示简短提示
-                QMessageBox.information(
-                    self,
-                    "复制成功",
-                    f"✅ 邮箱已复制！\n\n{email}"
-                )
+                # 显示 Toast 提示（2秒自动消失，无声）
+                from gui.widgets.toast_notification import show_toast
+                show_toast(self, f"✅ 邮箱已复制！\n{email}", duration=2000, success=True)
             else:
-                QMessageBox.warning(self, "错误", "邮箱地址为空")
+                from gui.widgets.toast_notification import show_toast
+                show_toast(self, "邮箱地址为空", duration=2000, success=False)
         except Exception as e:
-            QMessageBox.critical(self, "复制失败", f"复制失败：\n{str(e)}")
+            from gui.widgets.toast_notification import show_toast
+            show_toast(self, f"复制失败：{str(e)}", duration=2000, success=False)
     
     def _copy_session_token(self):
         """复制SessionToken到剪贴板"""
@@ -801,24 +802,23 @@ class AccountDetailDialog(AnimatedDialog):
             session_token = self.session_token_text.toPlainText().strip()
             
             if not session_token or session_token == '未设置':
-                QMessageBox.warning(self, "提示", "SessionToken未设置")
+                from gui.widgets.toast_notification import show_toast
+                show_toast(self, "SessionToken 未设置", duration=2000, success=False)
                 return
             
             clipboard = QApplication.clipboard()
             clipboard.setText(session_token)
             
-            # 显示简短提示
-            QMessageBox.information(
-                self,
-                "复制成功",
-                f"✅ SessionToken已复制到剪贴板！"
-            )
+            # 显示 Toast 提示（2秒自动消失，无声）
+            from gui.widgets.toast_notification import show_toast
+            show_toast(self, "✅ SessionToken 已复制到剪贴板！", duration=2000, success=True)
             
         except Exception as e:
             from utils.logger import get_logger
             logger = get_logger("account_detail_dialog")
             logger.error(f"复制SessionToken失败: {e}")
-            QMessageBox.critical(self, "错误", f"复制失败：\n{str(e)}")
+            from gui.widgets.toast_notification import show_toast
+            show_toast(self, f"复制失败：{str(e)}", duration=2000, success=False)
     
     def _toggle_session_edit(self):
         """切换SessionToken编辑模式"""
