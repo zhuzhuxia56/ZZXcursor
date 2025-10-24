@@ -100,7 +100,7 @@ class TokenHandler:
                 'password': '',
                 'access_token': access_token,  # 保存 accessToken (加密)
                 'refresh_token': access_token,  # 使用相同的 token (加密)
-                'session_token_plain': session_token or '',  # 保存 SessionToken (明文) ⭐
+                'session_token': session_token or '',  # 保存 SessionToken (会被加密) ⭐
                 'user_id': user_id,
                 'machine_info': machine_info,  # 保存机器码 (加密)
                 'membership_type': 'free',
