@@ -9,6 +9,7 @@ import sys
 import json
 from pathlib import Path
 from typing import Optional, Dict
+from PyQt6.QtCore import QObject, pyqtSignal
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,10 +20,14 @@ from utils.app_paths import get_config_file
 logger = get_logger("card_pool_manager")
 
 
-class CardPoolManager:
+class CardPoolManager(QObject):
     """卡池管理器"""
     
+    # 信号：卡池更新时触发
+    cards_updated = pyqtSignal(int)  # 参数：剩余卡号数量
+    
     def __init__(self):
+        super().__init__()
         # 使用用户目录的配置文件路径
         self.config_file = get_config_file()
         self.current_index = 0
@@ -98,6 +103,9 @@ class CardPoolManager:
                     
                     # 保存到配置文件
                     self._save_cards_to_config()
+                    
+                    # 发送信号通知 UI 更新
+                    self.cards_updated.emit(len(self.cards))
                     
                     return True
             
