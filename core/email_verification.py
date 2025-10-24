@@ -237,24 +237,29 @@ class EmailVerificationHandler:
                                             parsed_date = parser.parse(mail_date)
                                             mail_timestamp = int(parsed_date.timestamp())
                                         except ImportError:
-                                            logger.warning("⚠️ dateutil 未安装，跳过时间解析")
-                                            continue  # 无法解析时间，继续处理此邮件
+                                            logger.warning("⚠️ dateutil 未安装，跳过时间检查，继续处理邮件")
+                                            mail_timestamp = None  # 标记为无法解析
+                                        except Exception as e:
+                                            logger.warning(f"⚠️ 解析时间字符串失败: {e}")
+                                            mail_timestamp = None  # 标记为无法解析
                                     
-                                    current_timestamp = int(time.time())
-                                    time_diff_seconds = current_timestamp - mail_timestamp
-                                    time_diff_minutes = time_diff_seconds / 60
-                                    
-                                    logger.info(f"⏰ 邮件时间差: {time_diff_minutes:.1f} 分钟前")
-                                    
-                                    if time_diff_minutes > 2:
-                                        logger.warning(f"❌ 邮件时间超过2分钟（{time_diff_minutes:.1f}分钟前），跳过旧邮件")
-                                        continue  # 跳过这封邮件，检查下一封
-                                    elif time_diff_minutes < 0:
-                                        logger.warning(f"❌ 邮件时间异常（来自未来？），跳过")
-                                        continue
-                                except ImportError:
-                                    logger.warning("⚠️ dateutil 未安装，无法解析时间，继续处理此邮件")
-                                    # 不中断流程，继续处理邮件
+                                    # 只有成功获取时间戳才进行时间检查
+                                    if mail_timestamp is not None:
+                                        current_timestamp = int(time.time())
+                                        time_diff_seconds = current_timestamp - mail_timestamp
+                                        time_diff_minutes = time_diff_seconds / 60
+                                        
+                                        logger.info(f"⏰ 邮件时间差: {time_diff_minutes:.1f} 分钟前")
+                                        
+                                        if time_diff_minutes > 2:
+                                            logger.warning(f"❌ 邮件时间超过2分钟（{time_diff_minutes:.1f}分钟前），跳过旧邮件")
+                                            continue  # 跳过这封邮件，检查下一封
+                                        elif time_diff_minutes < 0:
+                                            logger.warning(f"❌ 邮件时间异常（来自未来？），跳过")
+                                            continue
+                                    else:
+                                        logger.info("⏰ 无法验证邮件时间，跳过时间检查")
+                                
                                 except Exception as e:
                                     logger.warning(f"⚠️ 解析邮件时间失败: {e}")
                                     logger.warning(f"   原始时间: {mail_date}")
