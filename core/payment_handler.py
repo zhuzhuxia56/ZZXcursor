@@ -295,7 +295,7 @@ class PaymentHandler:
         
         # 方法1: 通过精确文本查找
         try:
-            trial_button = tab.ele("text:Free 7-day trial", timeout=3)
+            trial_button = tab.ele("text:Free 7-day trial", timeout=10)
             if trial_button:
                 logger.info("✅ 通过文本找到 Trial 按钮")
         except:
@@ -304,7 +304,7 @@ class PaymentHandler:
         # 方法2: 通过备用文本查找
         if not trial_button:
             try:
-                trial_button = tab.ele("text:Start 7-day Free Trial", timeout=2)
+                trial_button = tab.ele("text:Start 7-day Free Trial", timeout=10)
                 if trial_button:
                     logger.info("✅ 通过备用文本找到 Trial 按钮")
             except:
@@ -313,7 +313,7 @@ class PaymentHandler:
         # 方法3: 通过模糊匹配查找（包含 "trial" 关键词的按钮）
         if not trial_button:
             try:
-                buttons = tab.eles("tag:button", timeout=3)
+                buttons = tab.eles("tag:button", timeout=10)
                 for btn in buttons:
                     btn_text = btn.text.lower()
                     if "trial" in btn_text or "试用" in btn_text:
@@ -326,7 +326,7 @@ class PaymentHandler:
         # 方法4: 通过 class 查找
         if not trial_button:
             try:
-                buttons = tab.eles("@class=dashboard-primary-button", timeout=3)
+                buttons = tab.eles("@class=dashboard-primary-button", timeout=10)
                 for btn in buttons:
                     if "trial" in btn.text.lower() or "试用" in btn.text or "free" in btn.text.lower():
                         trial_button = btn
