@@ -17,7 +17,8 @@ ROOT_DIR = Path('.').resolve()
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 # 收集所有第三方库的完整内容
-pyqt6_datas, pyqt6_binaries, pyqt6_hiddenimports = collect_all('PyQt6')
+# ⚠️ macOS: 不使用 collect_all('PyQt6')，会导致符号链接冲突
+# PyQt6 由 PyInstaller 自动处理即可
 requests_datas, requests_binaries, requests_hiddenimports = collect_all('requests')
 urllib3_datas, urllib3_binaries, urllib3_hiddenimports = collect_all('urllib3')
 drissionpage_datas, drissionpage_binaries, drissionpage_hiddenimports = collect_all('DrissionPage')
@@ -35,7 +36,7 @@ datas = [
 ]
 
 # 添加所有第三方库的数据文件
-datas += pyqt6_datas
+# ⚠️ macOS: 跳过 pyqt6_datas（避免符号链接冲突）
 datas += requests_datas
 datas += urllib3_datas
 datas += drissionpage_datas
@@ -47,7 +48,7 @@ datas += colorama_datas
 
 # 添加所有二进制文件
 binaries = []
-binaries += pyqt6_binaries
+# ⚠️ macOS: 跳过 pyqt6_binaries（避免符号链接冲突）
 binaries += requests_binaries
 binaries += urllib3_binaries
 binaries += drissionpage_binaries
@@ -122,7 +123,7 @@ a = Analysis(
     pathex=[str(ROOT_DIR)],
     binaries=binaries,
     datas=datas,
-    hiddenimports=(hiddenimports + pyqt6_hiddenimports + requests_hiddenimports + urllib3_hiddenimports + 
+    hiddenimports=(hiddenimports + requests_hiddenimports + urllib3_hiddenimports + 
                    drissionpage_hiddenimports + jwt_hiddenimports + loguru_hiddenimports +
                    cryptography_hiddenimports + dateutil_hiddenimports + colorama_hiddenimports),
     hookspath=[],
