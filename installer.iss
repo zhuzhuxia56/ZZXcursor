@@ -54,10 +54,8 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
 
 [Languages]
-; 使用英文（GitHub Actions 环境中更稳定）
-Name: "english"; MessagesFile: "compiler:Default.isl"
-; 如果需要中文，可以在本地构建时手动改回：
-; Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 使用项目中的中文语言文件（GitHub Actions 兼容）
+Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标:"; Flags: checkedonce
