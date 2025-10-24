@@ -60,19 +60,48 @@ jobs:
         Compress-Archive -Path "dist\Zzx Cursor Auto Manager" -DestinationPath "Zzx-Cursor-Auto-Windows-Portable.zip"
       shell: pwsh
     
-    - name: 上传 Windows 构建产物
+    - name: 安装 Inno Setup
+      run: |
+        Write-Host "安装 Inno Setup..."
+        choco install innosetup -y
+      shell: pwsh
+    
+    - name: 创建 Windows 安装包
+      run: |
+        Write-Host "使用 Inno Setup 创建安装包..."
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "✅ 安装包创建成功"
+          if (Test-Path "output\*.exe") {
+            Get-ChildItem "output\*.exe" | ForEach-Object { Write-Host "生成文件: $($_.Name)" }
+          }
+        } else {
+          Write-Host "⚠️  安装包创建失败，但继续流程"
+        }
+      shell: pwsh
+      continue-on-error: true
+    
+    - name: 上传 Windows 便携版
       uses: actions/upload-artifact@v4
       with:
         name: windows-portable
         path: Zzx-Cursor-Auto-Windows-Portable.zip
         retention-days: 30
     
-    - name: 上传 Windows 文件夹
+    - name: 上传 Windows 安装包
+      uses: actions/upload-artifact@v4
+      if: hashFiles('output/*.exe') != ''
+      with:
+        name: windows-installer
+        path: output/*.exe
+        retention-days: 30
+    
+    - name: 上传 Windows 文件夹（调试用）
       uses: actions/upload-artifact@v4
       with:
         name: windows-folder
         path: dist/Zzx Cursor Auto Manager/
-        retention-days: 30
+        retention-days: 7
 
   build-macos:
     name: 构建 macOS 版本
@@ -132,23 +161,34 @@ jobs:
           exit 1
         fi
     
-    - name: 创建 DMG 安装包（可选）
+    - name: 创建 DMG 安装包
       run: |
-        echo "创建 DMG 安装包..."
-        # 使用 create-dmg 或简单压缩
+        echo "创建 DMG 安装镜像..."
         cd dist
-        hdiutil create -volname "Zzx Cursor Auto Manager" -srcfolder "Zzx Cursor Auto Manager.app" -ov -format UDZO "Zzx-Cursor-Auto-macOS.dmg" || {
-          echo "DMG 创建失败，使用 ZIP 压缩"
+        
+        # 方法1: 使用 hdiutil 创建 DMG
+        if hdiutil create -volname "Zzx Cursor Auto Manager" -srcfolder "Zzx Cursor Auto Manager.app" -ov -format UDZO "Zzx-Cursor-Auto-macOS.dmg"; then
+          echo "✅ DMG 创建成功"
+          ls -lh *.dmg
+        else
+          echo "⚠️  DMG 创建失败，使用 ZIP 作为备用"
           zip -r "Zzx-Cursor-Auto-macOS.zip" "Zzx Cursor Auto Manager.app"
-        }
+        fi
     
-    - name: 上传 macOS 构建产物
+    - name: 上传 macOS DMG 安装包
       uses: actions/upload-artifact@v4
+      if: hashFiles('dist/*.dmg') != ''
       with:
-        name: macos-app
-        path: |
-          dist/*.dmg
-          dist/*.zip
+        name: macos-dmg
+        path: dist/*.dmg
+        retention-days: 30
+    
+    - name: 上传 macOS ZIP（备用）
+      uses: actions/upload-artifact@v4
+      if: hashFiles('dist/*.zip') != ''
+      with:
+        name: macos-zip
+        path: dist/*.zip
         retention-days: 30
     
     - name: 移除隔离属性（本地测试用）
@@ -164,24 +204,40 @@ jobs:
     if: github.event_name == 'release'
     
     steps:
-    - name: 下载 Windows 构建产物
+    - name: 下载 Windows 便携版
       uses: actions/download-artifact@v4
       with:
         name: windows-portable
         path: ./artifacts
+      continue-on-error: true
     
-    - name: 下载 macOS 构建产物
+    - name: 下载 Windows 安装包
       uses: actions/download-artifact@v4
       with:
-        name: macos-app
+        name: windows-installer
         path: ./artifacts
+      continue-on-error: true
+    
+    - name: 下载 macOS DMG
+      uses: actions/download-artifact@v4
+      with:
+        name: macos-dmg
+        path: ./artifacts
+      continue-on-error: true
+    
+    - name: 下载 macOS ZIP
+      uses: actions/download-artifact@v4
+      with:
+        name: macos-zip
+        path: ./artifacts
+      continue-on-error: true
     
     - name: 上传到 Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          ./artifacts/Zzx-Cursor-Auto-Windows-Portable.zip
-          ./artifacts/*.dmg
           ./artifacts/*.zip
+          ./artifacts/*.exe
+          ./artifacts/*.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
