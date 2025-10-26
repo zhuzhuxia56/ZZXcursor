@@ -52,6 +52,7 @@ class PaymentPanel(QWidget):
         self.config = self._load_config()
         self.is_auto_gen_unlocked = False  # 自动生成功能解锁状态
         self.has_unsaved_changes = False  # 是否有未保存的修改
+        self._is_reloading = False  # 是否正在重新加载配置
         self.init_ui()
         self._load_current_config()
         self._connect_change_signals()  # 连接所有变更信号
@@ -660,6 +661,8 @@ class PaymentPanel(QWidget):
             self.card_count_label.setText(f"已导入: {len(imported_cards)} 组")
             logger.info(f"✅ 从配置加载了 {len(imported_cards)} 组卡号")
         else:
+            # ⭐ 没有卡号时也要更新统计标签
+            self.card_count_label.setText(f"已导入: 0 组")
             logger.debug("配置中没有导入的卡号")
         
         # 固定信息配置
@@ -1274,11 +1277,14 @@ class PaymentPanel(QWidget):
             verify_cards = verify_config.get('payment_binding', {}).get('imported_cards', [])
             logger.info(f"✅ 配置验证成功，卡号数量: {len(verify_cards)}")
             
-            # 更新本地配置
-            self.config = latest_config
+            # ⭐ 重新从文件加载配置（确保与文件同步）
+            self.config = self._load_config()
             
-            # 更新统计
-            self.card_count_label.setText(f"已导入: {len(valid_cards)} 组")
+            # ⭐ 重新加载配置到界面（确保界面显示正确）
+            # 但是要临时标记避免触发变更信号
+            self._is_reloading = True
+            self._load_current_config()
+            self._is_reloading = False
             
             # 重置未保存标记
             self.has_unsaved_changes = False
