@@ -38,6 +38,17 @@ class PaymentPanel(QWidget):
         self.setObjectName("PaymentPanel")  # 设置对象名用于CSS
         # 使用用户目录的配置文件路径
         self.config_file = get_config_file()
+        
+        # ⭐ 记录配置文件路径信息（帮助诊断打包后的问题）
+        logger.info(f"📁 配置文件路径: {self.config_file}")
+        logger.info(f"📂 配置目录: {self.config_file.parent}")
+        logger.info(f"✓ 配置文件存在: {self.config_file.exists()}")
+        if self.config_file.exists():
+            import os
+            logger.info(f"✓ 文件大小: {self.config_file.stat().st_size} 字节")
+            logger.info(f"✓ 可读: {os.access(self.config_file, os.R_OK)}")
+            logger.info(f"✓ 可写: {os.access(self.config_file, os.W_OK)}")
+        
         self.config = self._load_config()
         self.is_auto_gen_unlocked = False  # 自动生成功能解锁状态
         self.has_unsaved_changes = False  # 是否有未保存的修改
@@ -88,6 +99,13 @@ class PaymentPanel(QWidget):
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #7f8c8d; padding: 5px 0;")
         layout.addWidget(desc)
+        
+        # ⭐ 显示配置文件路径（帮助用户了解配置保存位置）
+        path_label = QLabel(f"💾 配置文件: {self.config_file}")
+        path_label.setWordWrap(True)
+        path_label.setStyleSheet("color: #95a5a6; font-size: 10px; padding: 2px 0;")
+        path_label.setToolTip("配置数据保存在此文件中，可手动备份")
+        layout.addWidget(path_label)
         
         # 基础配置
         basic_group = self._create_basic_config_group()
@@ -362,21 +380,22 @@ class PaymentPanel(QWidget):
         self.card_count_label.setStyleSheet("color: #27ae60; font-weight: bold; font-size: 11px;")
         import_layout.addWidget(self.card_count_label)
         
-        # 验证按钮
-        validate_btn = QPushButton("✓ 验证格式")
+        # 验证并保存按钮
+        validate_btn = QPushButton("✓ 验证并保存")
         validate_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3498db;
+                background-color: #27ae60;
                 color: white;
                 padding: 5px 15px;
                 border-radius: 3px;
                 font-size: 11px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #229954;
             }
         """)
-        validate_btn.clicked.connect(self._on_validate_cards)
+        validate_btn.clicked.connect(self._on_validate_and_save_cards)
         import_layout.addWidget(validate_btn)
         
         right_layout.addWidget(self.import_card_widget)
@@ -576,11 +595,19 @@ class PaymentPanel(QWidget):
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    config = json.load(f)
+                logger.info(f"✅ 配置文件加载成功，配置项数: {len(config)}")
+                payment_config = config.get('payment_binding', {})
+                if payment_config:
+                    logger.info(f"  绑卡配置: 启用={payment_config.get('enabled', False)}, "
+                               f"模式={payment_config.get('card_mode', 'import')}, "
+                               f"卡号数={len(payment_config.get('imported_cards', []))}")
+                return config
             else:
+                logger.warning(f"⚠️ 配置文件不存在: {self.config_file}")
                 return {}
         except Exception as e:
-            print(f"加载配置失败: {e}")
+            logger.error(f"❌ 加载配置失败: {e}", exc_info=True)
             return {}
     
     def _reload_config(self):
@@ -1116,8 +1143,170 @@ class PaymentPanel(QWidget):
         except Exception as e:
             logger.debug(f"刷新卡号数量失败: {e}")
     
+    def _on_validate_and_save_cards(self):
+        """验证并保存导入的卡号"""
+        try:
+            text = self.card_list_input.toPlainText().strip()
+            if not text:
+                QMessageBox.warning(self, "提示", "请先输入卡号列表")
+                return
+            
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            
+            if len(lines) > 500:
+                QMessageBox.warning(
+                    self,
+                    "超出限制",
+                    f"导入的卡号数量超过限制！\n\n"
+                    f"当前: {len(lines)} 组\n"
+                    f"限制: 500 组\n\n"
+                    f"请删除多余的 {len(lines) - 500} 组"
+                )
+                return
+            
+            valid_cards = []
+            invalid_lines = []
+            
+            # 验证每一行
+            for i, line in enumerate(lines, 1):
+                parts = line.split('|')
+                
+                # 检查格式
+                if len(parts) != 4:
+                    invalid_lines.append(f"第{i}行: 格式错误（应为4个部分）")
+                    continue
+                
+                card_num, month, year, cvv = parts
+                
+                # 验证卡号（16位数字）
+                if not card_num.isdigit() or len(card_num) != 16:
+                    invalid_lines.append(f"第{i}行: 卡号必须是16位数字")
+                    continue
+                
+                # 验证月份（01-12）
+                if not month.isdigit() or not (1 <= int(month) <= 12):
+                    invalid_lines.append(f"第{i}行: 月份必须是01-12")
+                    continue
+                
+                # 验证年份（4位数字）
+                if not year.isdigit() or len(year) != 4:
+                    invalid_lines.append(f"第{i}行: 年份必须是4位数字（如2025）")
+                    continue
+                
+                # 验证CVV（3位数字）
+                if not cvv.isdigit() or len(cvv) != 3:
+                    invalid_lines.append(f"第{i}行: CVV必须是3位数字")
+                    continue
+                
+                valid_cards.append({
+                    'number': card_num,
+                    'month': month,
+                    'year': year,
+                    'cvv': cvv
+                })
+            
+            # 如果有格式错误，显示错误不保存
+            if invalid_lines:
+                error_msg = "\n".join(invalid_lines[:10])  # 只显示前10个错误
+                if len(invalid_lines) > 10:
+                    error_msg += f"\n... 还有 {len(invalid_lines) - 10} 个错误"
+                
+                QMessageBox.warning(
+                    self,
+                    "格式验证失败",
+                    f"❌ 发现 {len(invalid_lines)} 个格式错误，未保存配置！\n\n{error_msg}\n\n"
+                    f"有效卡号: {len(valid_cards)} 组\n\n"
+                    f"请修正错误后重新保存。"
+                )
+                # 更新统计但不保存
+                self.card_count_label.setText(f"已导入: {len(valid_cards)} 组（未保存）")
+                return
+            
+            # ⭐ 验证成功，保存配置
+            logger.info(f"✅ 卡号验证通过，准备保存 {len(valid_cards)} 组卡号")
+            
+            # 读取当前配置
+            card_mode = 'import'  # 导入模式
+            
+            payment_config = {
+                'enabled': self.enable_checkbox.isChecked(),
+                'auto_fill': self.auto_fill_checkbox.isChecked(),
+                'skip_on_error': self.skip_radio.isChecked(),
+                'card_mode': card_mode,
+                'card_bin_prefix': self.bin_input.text().strip() or '5224900',
+                'imported_cards': valid_cards,
+                'auto_gen_unlocked': self.is_auto_gen_unlocked,
+                'fixed_info': {
+                    'enabled': self.fixed_info_checkbox.isChecked(),
+                    'country': self.country_input.text().strip().upper() or 'US',
+                    'name': self.name_input.text().strip(),
+                    'address': self.address_input.text().strip(),
+                    'city': self.city_input.text().strip(),
+                    'state': self.state_input.text().strip(),
+                    'zip': self.zip_input.text().strip(),
+                    'enable_city': self.city_enable_checkbox.isChecked(),
+                    'enable_state': self.state_enable_checkbox.isChecked(),
+                    'enable_zip': self.zip_enable_checkbox.isChecked()
+                }
+            }
+            
+            # 重新加载最新配置（避免覆盖其他面板的修改）
+            latest_config = self._load_config()
+            
+            # 更新绑卡配置部分
+            if 'payment_binding' not in latest_config:
+                latest_config['payment_binding'] = {}
+            
+            latest_config['payment_binding'].update(payment_config)
+            
+            # 确保目录存在
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 保存到文件
+            logger.info(f"正在保存卡号配置到: {self.config_file}")
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(latest_config, f, indent=2, ensure_ascii=False)
+            logger.info(f"✅ 配置文件保存成功")
+            
+            # 验证保存
+            with open(self.config_file, 'r', encoding='utf-8') as f:
+                verify_config = json.load(f)
+            verify_cards = verify_config.get('payment_binding', {}).get('imported_cards', [])
+            logger.info(f"✅ 配置验证成功，卡号数量: {len(verify_cards)}")
+            
+            # 更新本地配置
+            self.config = latest_config
+            
+            # 更新统计
+            self.card_count_label.setText(f"已导入: {len(valid_cards)} 组")
+            
+            # 重置未保存标记
+            self.has_unsaved_changes = False
+            
+            # 使用 Toast 通知显示成功
+            from gui.widgets.toast_notification import show_toast
+            main_window = self.window()
+            show_toast(
+                main_window, 
+                f"✅ 卡号验证并保存成功！\n📦 共 {len(valid_cards)} 组卡号",
+                duration=2500
+            )
+            
+            # 发送配置变更信号
+            self.config_changed.emit()
+            
+            logger.info(f"✅ 卡号配置已成功保存，共 {len(valid_cards)} 组")
+            
+        except Exception as e:
+            logger.error(f"❌ 验证并保存失败: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, 
+                "保存失败", 
+                f"❌ 验证并保存失败：\n\n{e}\n\n请查看日志获取详细信息。"
+            )
+    
     def _on_validate_cards(self):
-        """验证导入的卡号格式"""
+        """验证导入的卡号格式（仅验证不保存）"""
         try:
             text = self.card_list_input.toPlainText().strip()
             if not text:
@@ -1396,18 +1585,41 @@ class PaymentPanel(QWidget):
                 }
             }
             
+            # ⭐ 记录保存操作开始
+            logger.info("=" * 60)
+            logger.info(f"开始保存绑卡配置到: {self.config_file}")
+            logger.info(f"配置目录: {self.config_file.parent}")
+            logger.info(f"目录是否存在: {self.config_file.parent.exists()}")
+            import os
+            if self.config_file.parent.exists():
+                logger.info(f"目录可写: {os.access(self.config_file.parent, os.W_OK)}")
+            
             # ⭐ 重新加载最新配置（避免覆盖其他面板的修改）
             latest_config = self._load_config()
+            logger.info(f"重新加载配置成功，当前配置项: {len(latest_config)}")
             
             # 更新绑卡配置部分
             if 'payment_binding' not in latest_config:
                 latest_config['payment_binding'] = {}
             
             latest_config['payment_binding'].update(payment_config)
+            logger.info(f"更新后配置: 启用={payment_config['enabled']}, 模式={payment_config['card_mode']}, 卡号数量={len(imported_cards)}")
+            
+            # 确保目录存在
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
             
             # 保存到文件
+            logger.info(f"正在写入配置文件...")
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(latest_config, f, indent=2, ensure_ascii=False)
+            logger.info(f"✅ 配置文件写入成功")
+            
+            # ⭐ 验证保存（重新读取确认）
+            with open(self.config_file, 'r', encoding='utf-8') as f:
+                verify_config = json.load(f)
+            verify_cards = verify_config.get('payment_binding', {}).get('imported_cards', [])
+            logger.info(f"✅ 配置验证成功，文件大小: {self.config_file.stat().st_size} 字节")
+            logger.info(f"✅ 验证后卡号数量: {len(verify_cards)}")
             
             # ⭐ 更新本地配置为最新版本
             self.config = latest_config
@@ -1417,7 +1629,10 @@ class PaymentPanel(QWidget):
             
             # 获取主窗口
             main_window = self.window()
-            show_toast(main_window, "✅ 绑卡配置已保存！", duration=2000)
+            toast_msg = f"✅ 绑卡配置已保存！\n"
+            if card_mode == 'import':
+                toast_msg += f"📦 卡号: {len(imported_cards)} 组"
+            show_toast(main_window, toast_msg, duration=2500)
             
             # 发送配置变更信号
             self.config_changed.emit()
@@ -1425,13 +1640,35 @@ class PaymentPanel(QWidget):
             # 重置未保存标记
             self.has_unsaved_changes = False
             
+            logger.info("=" * 60)
             return True  # 保存成功
             
+        except PermissionError as e:
+            # ⭐ 特别处理权限错误
+            logger.error(f"❌ 权限错误: {e}")
+            QMessageBox.critical(
+                self,
+                "保存失败 - 权限不足",
+                f"❌ 无法保存配置文件，可能是权限问题。\n\n"
+                f"📁 文件位置：\n{self.config_file}\n\n"
+                f"💡 请尝试：\n"
+                f"  1. 以管理员身份运行程序\n"
+                f"  2. 检查文件夹是否只读\n"
+                f"  3. 检查杀毒软件是否阻止\n\n"
+                f"🔧 错误详情：{e}"
+            )
+            return False
         except Exception as e:
+            # ⭐ 其他错误的详细记录
+            logger.error(f"❌ 保存配置失败: {e}", exc_info=True)
             QMessageBox.critical(
                 self,
                 "保存失败",
-                f"保存配置时出错：\n{e}"
+                f"❌ 保存配置时出错。\n\n"
+                f"📁 文件位置：\n{self.config_file}\n\n"
+                f"🔧 错误类型：{type(e).__name__}\n"
+                f"🔧 错误详情：{str(e)}\n\n"
+                f"请查看日志文件获取更多信息。"
             )
             return False  # 保存失败
     

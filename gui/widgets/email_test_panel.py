@@ -56,6 +56,9 @@ class EmailTestPanel(QWidget):
         try:
             config_path = get_config_file()
             
+            # ⭐ 记录保存操作
+            logger.info(f"开始保存邮箱配置到: {config_path}")
+            
             # ⭐ 重新加载最新配置（避免覆盖其他面板的修改）
             latest_config = self._load_config()
             
@@ -71,12 +74,28 @@ class EmailTestPanel(QWidget):
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(latest_config, f, ensure_ascii=False, indent=2)
             
+            # ⭐ 验证保存
+            with open(config_path, 'r', encoding='utf-8') as f:
+                verify_config = json.load(f)
+            if 'email' in verify_config:
+                logger.info(f"✅ 邮箱配置验证成功")
+            
             # ⭐ 更新本地配置为最新版本
             self.config = latest_config
             
             logger.info("✅ 邮箱配置已保存（不影响其他配置）")
+        except PermissionError as e:
+            logger.error(f"❌ 权限错误: {e}")
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "保存失败",
+                f"❌ 无法保存配置文件，权限不足。\n\n"
+                f"📁 文件位置：\n{config_path}\n\n"
+                f"请以管理员身份运行程序。"
+            )
         except Exception as e:
-            logger.error(f"保存配置失败: {e}")
+            logger.error(f"❌ 保存配置失败: {e}", exc_info=True)
     
     def _setup_ui(self):
         """设置 UI"""

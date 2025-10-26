@@ -88,6 +88,31 @@ class ActivationManager:
         today_str = date.today().isoformat()
         return usage.get(today_str, 0)
     
+    def get_today_payment_count(self) -> int:
+        """
+        获取今天已绑卡数量
+        
+        Returns:
+            int: 今天已绑卡的账号数量
+        """
+        license_info = self.config.get('license', {})
+        payment_usage = license_info.get('daily_payment_usage', {})
+        
+        today_str = date.today().isoformat()
+        return payment_usage.get(today_str, 0)
+    
+    def get_payment_daily_limit(self) -> int:
+        """
+        获取每日绑卡限制
+        
+        Returns:
+            int: 每日限制数量（0表示无限制）
+        """
+        if self.is_activated():
+            return 0  # 已激活，无限制
+        else:
+            return 5  # 未激活，每天5个
+    
     def increment_daily_count(self) -> bool:
         """
         增加今天的注册计数
@@ -113,6 +138,31 @@ class ActivationManager:
             logger.error(f"增加计数失败: {e}")
             return False
     
+    def increment_payment_count(self) -> bool:
+        """
+        增加今天的绑卡计数
+        
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if 'license' not in self.config:
+                self.config['license'] = {}
+            if 'daily_payment_usage' not in self.config['license']:
+                self.config['license']['daily_payment_usage'] = {}
+            
+            today_str = date.today().isoformat()
+            current_count = self.config['license']['daily_payment_usage'].get(today_str, 0)
+            self.config['license']['daily_payment_usage'][today_str] = current_count + 1
+            
+            # 只保留最近7天的记录
+            self._cleanup_old_payment_records()
+            
+            return self._save_config()
+        except Exception as e:
+            logger.error(f"增加绑卡计数失败: {e}")
+            return False
+    
     def _cleanup_old_records(self):
         """清理7天前的旧记录"""
         try:
@@ -133,6 +183,26 @@ class ActivationManager:
         except Exception as e:
             logger.debug(f"清理旧记录失败: {e}")
     
+    def _cleanup_old_payment_records(self):
+        """清理7天前的绑卡旧记录"""
+        try:
+            from datetime import timedelta
+            
+            if 'license' not in self.config or 'daily_payment_usage' not in self.config['license']:
+                return
+            
+            usage = self.config['license']['daily_payment_usage']
+            today = date.today()
+            cutoff = today - timedelta(days=7)
+            
+            # 删除7天前的记录
+            old_dates = [d for d in usage.keys() if d < cutoff.isoformat()]
+            for old_date in old_dates:
+                del usage[old_date]
+                
+        except Exception as e:
+            logger.debug(f"清理绑卡旧记录失败: {e}")
+    
     def can_register(self) -> tuple:
         """
         检查是否可以注册
@@ -151,6 +221,25 @@ class ActivationManager:
             return (True, remaining, f"未激活，今日剩余 {remaining}/{limit} 个")
         else:
             return (False, 0, f"未激活，今日额度已用完 ({limit}/{limit})")
+    
+    def can_bind_payment(self) -> tuple:
+        """
+        检查是否可以绑卡
+        
+        Returns:
+            tuple: (是否可以绑卡, 剩余额度, 提示信息)
+        """
+        if self.is_activated():
+            return (True, -1, "已激活，无限制")
+        
+        limit = self.get_payment_daily_limit()
+        used = self.get_today_payment_count()
+        remaining = limit - used
+        
+        if remaining > 0:
+            return (True, remaining, f"未激活，今日剩余 {remaining}/{limit} 个")
+        else:
+            return (False, 0, f"未激活，今日绑卡额度已用完 ({limit}/{limit})")
     
     def activate(self, activation_code: str, machine_id: str = None) -> tuple:
         """

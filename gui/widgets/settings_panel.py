@@ -60,12 +60,36 @@ class SettingsPanel(QWidget):
     def _save_config(self):
         """保存配置文件"""
         try:
+            # ⭐ 记录保存操作
+            logger.info(f"开始保存设置配置到: {self.config_path}")
+            
+            # 确保目录存在
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 保存配置
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
-            logger.info("配置已保存")
+            
+            # ⭐ 验证保存
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                verify_config = json.load(f)
+            logger.info(f"✅ 设置配置验证成功，配置项数: {len(verify_config)}")
+            
+            logger.info("✅ 设置配置已保存")
             return True
+        except PermissionError as e:
+            logger.error(f"❌ 权限错误: {e}")
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "保存失败",
+                f"❌ 无法保存配置文件，权限不足。\n\n"
+                f"📁 文件位置：\n{self.config_path}\n\n"
+                f"请以管理员身份运行程序。"
+            )
+            return False
         except Exception as e:
-            logger.error(f"保存配置失败: {e}")
+            logger.error(f"❌ 保存配置失败: {e}", exc_info=True)
             return False
     
     def _setup_ui(self):
