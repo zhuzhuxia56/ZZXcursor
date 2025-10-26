@@ -50,7 +50,6 @@ class PaymentPanel(QWidget):
             logger.info(f"✓ 可写: {os.access(self.config_file, os.W_OK)}")
         
         self.config = self._load_config()
-        self.is_auto_gen_unlocked = False  # 自动生成功能解锁状态
         self.has_unsaved_changes = False  # 是否有未保存的修改
         self._is_reloading = False  # 是否正在重新加载配置
         self.init_ui()
@@ -204,121 +203,15 @@ class PaymentPanel(QWidget):
         return group
     
     def _create_card_config_group(self):
-        """创建虚拟卡配置组（左右分栏）"""
+        """创建虚拟卡配置组"""
         group = QGroupBox("虚拟卡配置")
         main_layout = QVBoxLayout()
         
-        # 左右分栏
-        columns_layout = QHBoxLayout()
-        
-        # ========== 左栏：自动生成 ==========
-        left_panel = QWidget()
-        left_panel.setObjectName("CardLeftPanel")  # 设置对象名用于CSS
-        left_layout = QVBoxLayout(left_panel)
-        
-        # 创建单选按钮组（确保互斥）
-        self.card_mode_group = QButtonGroup(self)
-        self.card_mode_group.buttonClicked.connect(self._on_card_mode_changed)
-        
-        # 左栏标题
-        title_layout = QHBoxLayout()
-        self.auto_gen_radio = QRadioButton("🎲 自动生成卡号")
-        self.auto_gen_radio.setStyleSheet("font-weight: bold; font-size: 13px;")
-        self.card_mode_group.addButton(self.auto_gen_radio, 1)
-        title_layout.addWidget(self.auto_gen_radio)
-        
-        # 锁头图标
-        self.lock_icon = QLabel("🔒")
-        self.lock_icon.setStyleSheet("font-size: 16px; color: #e74c3c;")
-        self.lock_icon.setToolTip("需要解锁码")
-        title_layout.addWidget(self.lock_icon)
-        title_layout.addStretch()
-        
-        left_layout.addLayout(title_layout)
-        
-        # 解锁区域
-        self.unlock_widget = QWidget()
-        unlock_layout = QVBoxLayout(self.unlock_widget)
-        unlock_layout.setContentsMargins(10, 10, 0, 0)
-        
-        unlock_label = QLabel("🔐 请输入解锁码:")
-        unlock_label.setStyleSheet("color: #e74c3c; font-weight: bold; font-size: 12px;")
-        unlock_layout.addWidget(unlock_label)
-        
-        unlock_input_layout = QHBoxLayout()
-        self.unlock_input = QLineEdit()
-        self.unlock_input.setPlaceholderText("输入解锁码以使用自动生成功能")
-        self.unlock_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.unlock_input.setStyleSheet("padding: 5px; border: 2px solid #e74c3c; border-radius: 3px;")
-        unlock_input_layout.addWidget(self.unlock_input)
-        
-        self.unlock_btn = QPushButton("🔓 解锁")
-        self.unlock_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                padding: 5px 15px;
-                border-radius: 3px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """)
-        self.unlock_btn.clicked.connect(self._on_unlock)
-        unlock_input_layout.addWidget(self.unlock_btn)
-        
-        unlock_layout.addLayout(unlock_input_layout)
-        
-        unlock_hint = QLabel("💡 联系管理员获取解锁码")
-        unlock_hint.setStyleSheet("color: #95a5a6; font-size: 10px;")
-        unlock_layout.addWidget(unlock_hint)
-        
-        left_layout.addWidget(self.unlock_widget)
-        
-        # 卡头配置（默认锁定）
-        self.auto_gen_widget = QWidget()
-        auto_gen_layout = QVBoxLayout(self.auto_gen_widget)
-        auto_gen_layout.setContentsMargins(10, 10, 0, 0)
-        
-        bin_layout = QHBoxLayout()
-        bin_label = QLabel("BIN 卡头前缀:")
-        bin_label.setMinimumWidth(120)
-        self.bin_input = QLineEdit()
-        self.bin_input.setPlaceholderText("例如: 5224900")
-        self.bin_input.setMaxLength(10)
-        bin_layout.addWidget(bin_label)
-        bin_layout.addWidget(self.bin_input)
-        auto_gen_layout.addLayout(bin_layout)
-        
-        hint = QLabel("💡 卡头决定了卡号的前几位")
-        hint.setStyleSheet("color: #3498db; font-size: 11px;")
-        auto_gen_layout.addWidget(hint)
-        
-        # 常用卡头示例
-        examples_label = QLabel("常用卡头示例:")
-        examples_label.setStyleSheet("font-weight: bold; margin-top: 5px; font-size: 11px;")
-        auto_gen_layout.addWidget(examples_label)
-        
-        examples_text = "• 5224900 - MasterCard (默认)\n• 4242424 - Visa (Stripe 测试卡)\n• 5555555 - MasterCard\n• 3782822 - American Express"
-        examples = QLabel(examples_text)
-        examples.setStyleSheet("color: #7f8c8d; font-size: 10px; padding-left: 10px;")
-        auto_gen_layout.addWidget(examples)
-        
-        left_layout.addWidget(self.auto_gen_widget)
-        left_layout.addStretch()
-        
-        # ========== 右栏：导入卡号 ==========
-        right_panel = QWidget()
-        right_panel.setObjectName("CardRightPanel")  # 设置对象名用于CSS
-        right_layout = QVBoxLayout(right_panel)
-        
-        # 右栏标题
-        self.import_card_radio = QRadioButton("📥 导入卡号")
-        self.import_card_radio.setChecked(True)  # 默认选择导入卡号
-        self.import_card_radio.setStyleSheet("font-weight: bold; font-size: 13px;")
-        self.card_mode_group.addButton(self.import_card_radio, 2)  # 加入单选组
-        right_layout.addWidget(self.import_card_radio)
+        # ========== 导入卡号（唯一选项）==========
+        # 标题
+        title_label = QLabel("📥 导入卡号")
+        title_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px;")
+        main_layout.addWidget(title_label)
         
         # 导入卡号配置
         self.import_card_widget = QWidget()
@@ -399,14 +292,7 @@ class PaymentPanel(QWidget):
         validate_btn.clicked.connect(self._on_validate_and_save_cards)
         import_layout.addWidget(validate_btn)
         
-        right_layout.addWidget(self.import_card_widget)
-        right_layout.addStretch()
-        
-        # 添加到主布局
-        columns_layout.addWidget(left_panel)
-        columns_layout.addWidget(right_panel)
-        
-        main_layout.addLayout(columns_layout)
+        main_layout.addWidget(self.import_card_widget)
         
         group.setLayout(main_layout)
         return group
@@ -640,16 +526,6 @@ class PaymentPanel(QWidget):
         self.enable_checkbox.setChecked(payment_config.get('enabled', False))
         self.auto_fill_checkbox.setChecked(payment_config.get('auto_fill', True))
         
-        # 卡号模式（默认导入模式）
-        card_mode = payment_config.get('card_mode', 'import')
-        if card_mode == 'auto_generate':
-            self.auto_gen_radio.setChecked(True)
-        else:
-            self.import_card_radio.setChecked(True)
-        
-        # 卡头配置
-        self.bin_input.setText(payment_config.get('card_bin_prefix', '5224900'))
-        
         # 导入的卡号（持久化读取）
         imported_cards = payment_config.get('imported_cards', [])
         if imported_cards:
@@ -695,152 +571,24 @@ class PaymentPanel(QWidget):
             self.abort_radio.setChecked(True)
         
         # 初始状态
-        self._check_unlock_status()  # 检查解锁状态
         self._on_enable_changed()
-        self._on_card_mode_changed()
         self._on_fixed_info_changed()
-    
-    def _check_unlock_status(self):
-        """检查自动生成功能的解锁状态（从配置文件读取）"""
-        # ⭐ 从配置文件读取解锁状态（持久化）
-        payment_config = self.config.get('payment_binding', {})
-        self.is_auto_gen_unlocked = payment_config.get('auto_gen_unlocked', False)
-        
-        if self.is_auto_gen_unlocked:
-            logger.info("✅ 自动生成功能已解锁（从配置加载）")
-        else:
-            logger.debug("🔒 自动生成功能已锁定")
-        
-        self._update_auto_gen_lock_state()
-    
-    def _update_auto_gen_lock_state(self):
-        """更新自动生成区域的锁定状态"""
-        if self.is_auto_gen_unlocked:
-            # 已解锁
-            self.lock_icon.setText("🔓")
-            self.lock_icon.setStyleSheet("font-size: 16px; color: #27ae60;")
-            self.lock_icon.setToolTip("已解锁")
-            self.unlock_widget.setVisible(False)
-            self.auto_gen_widget.setEnabled(True)
-        else:
-            # 锁定
-            self.lock_icon.setText("🔒")
-            self.lock_icon.setStyleSheet("font-size: 16px; color: #e74c3c;")
-            self.lock_icon.setToolTip("需要解锁码")
-            self.unlock_widget.setVisible(True)
-            self.auto_gen_widget.setEnabled(False)
-    
-    def _verify_unlock_code(self, code: str) -> bool:
-        """
-        验证解锁码（加密验证）
-        
-        Args:
-            code: 用户输入的解锁码
-            
-        Returns:
-            bool: 是否有效
-        """
-        import hashlib
-        
-        # 移除解锁码中的分隔符和空格，转大写
-        clean_code = code.replace('-', '').replace(' ', '').upper()
-        
-        # 生成解锁码的哈希值（多层加密）
-        secret_key = "ZZX-PAYMENT-UNLOCK-2025"  # 密钥
-        salt = "CARD-BIN-GENERATOR"              # 盐值
-        
-        # 第一层：基础哈希
-        base_hash = hashlib.sha256(f"{secret_key}-{salt}".encode()).hexdigest()
-        
-        # 第二层：MD5混合
-        mixed_hash = hashlib.md5(base_hash.encode()).hexdigest()
-        
-        # 第三层：SHA256最终加密
-        final_hash = hashlib.sha256(f"{mixed_hash}-{secret_key}".encode()).hexdigest()
-        
-        # 取前15位作为解锁码（ZZX-CURSOR-2025 转换后的值）
-        valid_code = final_hash[:15].upper()
-        
-        # 验证（也支持原始格式）
-        return clean_code == valid_code or clean_code == "ZZXCURSOR2025"
-    
-    def _on_unlock(self):
-        """验证解锁码"""
-        try:
-            # 获取输入的解锁码
-            input_code = self.unlock_input.text().strip()
-            
-            if not input_code:
-                QMessageBox.warning(self, "提示", "请输入解锁码")
-                return
-            
-            # 验证解锁码
-            if self._verify_unlock_code(input_code):
-                # 解锁成功
-                self.is_auto_gen_unlocked = True
-                self._update_auto_gen_lock_state()
-                
-                # ⭐ 保存解锁状态到配置文件（持久化）
-                try:
-                    # ⭐ 重新加载最新配置（避免覆盖其他面板的修改）
-                    latest_config = self._load_config()
-                    
-                    if 'payment_binding' not in latest_config:
-                        latest_config['payment_binding'] = {}
-                    
-                    latest_config['payment_binding']['auto_gen_unlocked'] = True
-                    
-                    with open(self.config_file, 'w', encoding='utf-8') as f:
-                        json.dump(latest_config, f, indent=2, ensure_ascii=False)
-                    
-                    # ⭐ 更新本地配置
-                    self.config = latest_config
-                    
-                    logger.info("✅ 解锁状态已保存到配置文件（永久有效）")
-                except Exception as e:
-                    logger.error(f"保存解锁状态失败: {e}")
-                
-                # ⭐ 使用 Toast 通知
-                from gui.widgets.toast_notification import show_toast
-                main_window = self.window()
-                show_toast(main_window, "🔓 解锁成功！", duration=2000)
-                
-                # 清空输入框
-                self.unlock_input.clear()
-            else:
-                # 解锁失败
-                QMessageBox.warning(
-                    self,
-                    "解锁失败",
-                    "❌ 解锁码不正确！\n\n"
-                    "请检查输入的解锁码是否正确。"
-                )
-                
-                # 清空输入框
-                self.unlock_input.clear()
-                self.unlock_input.setFocus()
-        
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"验证解锁码时出错：\n{e}")
     
     def _on_enable_changed(self):
         """启用状态改变"""
         enabled = self.enable_checkbox.isChecked()
         
         self.auto_fill_checkbox.setEnabled(enabled)
-        self.auto_gen_radio.setEnabled(enabled)
-        self.import_card_radio.setEnabled(enabled)
         self.fixed_info_checkbox.setEnabled(enabled)
         self.skip_radio.setEnabled(enabled)
         self.abort_radio.setEnabled(enabled)
         self.test_btn.setEnabled(enabled)
         
+        # 控制导入卡号和固定信息区域
+        self.import_card_widget.setEnabled(enabled)
         if enabled:
-            self._on_card_mode_changed()
             self._on_fixed_info_changed()
         else:
-            self.auto_gen_widget.setEnabled(False)
-            self.import_card_widget.setEnabled(False)
             self.fixed_info_widget.setEnabled(False)
     
     def _connect_change_signals(self):
@@ -850,12 +598,6 @@ class PaymentPanel(QWidget):
         # 基础配置
         self.enable_checkbox.stateChanged.connect(self._mark_as_changed)
         self.auto_fill_checkbox.stateChanged.connect(self._mark_as_changed)
-        
-        # 卡号模式
-        self.card_mode_group.buttonClicked.connect(self._mark_as_changed)
-        
-        # 卡头配置
-        self.bin_input.textChanged.connect(self._mark_as_changed)
         
         # 导入卡号
         self.card_list_input.textChanged.connect(self._mark_as_changed)
@@ -912,29 +654,6 @@ class PaymentPanel(QWidget):
                 return False
         
         return True
-    
-    def _on_card_mode_changed(self):
-        """卡号模式改变"""
-        auto_gen_mode = self.auto_gen_radio.isChecked()
-        
-        # 如果选择自动生成，根据解锁状态显示相应界面
-        if auto_gen_mode:
-            # ⭐ 解锁状态会持久保持，不会因为切换模式而重置
-            if self.is_auto_gen_unlocked:
-                # 已解锁：隐藏解锁区域，显示配置区域
-                self.unlock_widget.setVisible(False)
-                self.auto_gen_widget.setEnabled(True)
-            else:
-                # 未解锁：显示解锁区域，禁用配置区域
-                self.unlock_widget.setVisible(True)
-                self.auto_gen_widget.setEnabled(False)
-        else:
-            # 导入模式：隐藏解锁区域
-            # ⭐ 注意：不重置解锁状态，只是隐藏界面
-            self.unlock_widget.setVisible(False)
-        
-        # 控制导入区域的启用/禁用
-        self.import_card_widget.setEnabled(not auto_gen_mode)
     
     def _on_fixed_info_changed(self):
         """固定信息状态改变"""
@@ -1229,16 +948,12 @@ class PaymentPanel(QWidget):
             logger.info(f"✅ 卡号验证通过，准备保存 {len(valid_cards)} 组卡号")
             
             # 读取当前配置
-            card_mode = 'import'  # 导入模式
-            
             payment_config = {
                 'enabled': self.enable_checkbox.isChecked(),
                 'auto_fill': self.auto_fill_checkbox.isChecked(),
                 'skip_on_error': self.skip_radio.isChecked(),
-                'card_mode': card_mode,
-                'card_bin_prefix': self.bin_input.text().strip() or '5224900',
+                'card_mode': 'import',  # 固定为导入模式
                 'imported_cards': valid_cards,
-                'auto_gen_unlocked': self.is_auto_gen_unlocked,
                 'fixed_info': {
                     'enabled': self.fixed_info_checkbox.isChecked(),
                     'country': self.country_input.text().strip().upper() or 'US',
@@ -1437,144 +1152,89 @@ class PaymentPanel(QWidget):
             # 读取国家代码
             country_code = self.country_input.text().strip().upper()
             
-            # 读取卡号模式和数据
-            card_mode = 'auto_generate' if self.auto_gen_radio.isChecked() else 'import'
+            # ⭐ 固定使用导入模式
+            card_mode = 'import'
             
-            # 如果是自动生成模式，检查是否已解锁
-            if card_mode == 'auto_generate' and not self.is_auto_gen_unlocked:
-                QMessageBox.warning(
-                    self,
-                    "提示",
-                    "⚠️ 自动生成卡号功能已锁定！\n\n"
-                    "请先输入解锁码解锁，或切换到'导入卡号'模式。"
-                )
-                return False
-            
-            # 如果是导入模式，验证并解析卡号列表
+            # 验证并解析导入的卡号列表
             imported_cards = []
-            if card_mode == 'import':
-                text = self.card_list_input.toPlainText().strip()
-                if text:
-                    lines = [line.strip() for line in text.split('\n') if line.strip()]
-                    
-                    # 验证格式
-                    validation_errors = []
-                    for i, line in enumerate(lines[:500], 1):
-                        parts = line.split('|')
-                        
-                        # 检查格式
-                        if len(parts) != 4:
-                            validation_errors.append(f"第{i}行: 格式错误（应为：卡号|月份|年份|CVV）")
-                            continue
-                        
-                        card_num, month, year, cvv = parts
-                        
-                        # 验证卡号（16位数字）
-                        if not card_num.isdigit() or len(card_num) != 16:
-                            validation_errors.append(f"第{i}行: 卡号必须是16位数字")
-                            continue
-                        
-                        # 验证月份（01-12）
-                        if not month.isdigit() or not (1 <= int(month) <= 12):
-                            validation_errors.append(f"第{i}行: 月份必须是01-12")
-                            continue
-                        
-                        # 验证年份（4位数字）
-                        if not year.isdigit() or len(year) != 4:
-                            validation_errors.append(f"第{i}行: 年份必须是4位数字（如2025）")
-                            continue
-                        
-                        # 验证CVV（3位数字）
-                        if not cvv.isdigit() or len(cvv) != 3:
-                            validation_errors.append(f"第{i}行: CVV必须是3位数字")
-                            continue
-                        
-                        # 格式正确，添加到列表
-                        imported_cards.append({
-                            'number': card_num,
-                            'month': month,
-                            'year': year,
-                            'cvv': cvv
-                        })
-                    
-                    # 如果有格式错误，显示并终止保存
-                    if validation_errors:
-                        error_msg = "\n".join(validation_errors[:10])
-                        if len(validation_errors) > 10:
-                            error_msg += f"\n... 还有 {len(validation_errors) - 10} 个错误"
-                        
-                        QMessageBox.critical(
-                            self,
-                            "格式错误",
-                            f"❌ 保存失败！发现 {len(validation_errors)} 个格式错误：\n\n"
-                            f"{error_msg}\n\n"
-                            f"请修正错误后再保存。\n"
-                            f"有效卡号: {len(imported_cards)} 组"
-                        )
-                        return False  # 终止保存
-            
-            # 如果启用了自动绑卡，检查是否可以生成卡
-            if self.enable_checkbox.isChecked():
-                if card_mode == 'auto_generate':
-                    # 左边：必须解锁 + BIN卡头至少6位
-                    if not self.is_auto_gen_unlocked:
-                        QMessageBox.critical(
-                            self,
-                            "保存失败",
-                            "❌ 自动生成卡号功能未解锁！\n\n"
-                            "请先输入解锁码解锁，或切换到'导入卡号'模式。"
-                        )
-                        return False
-                    
-                    bin_prefix = self.bin_input.text().strip()
-                    if not bin_prefix:
-                        QMessageBox.critical(
-                            self,
-                            "保存失败",
-                            "❌ BIN 卡头前缀不能为空！\n\n"
-                            "请输入有效的卡头前缀（如：5224900）"
-                        )
-                        return False
-                    
-                    if not bin_prefix.isdigit():
-                        QMessageBox.critical(
-                            self,
-                            "保存失败",
-                            "❌ BIN 卡头前缀必须是数字！\n\n"
-                            f"当前输入: {bin_prefix}\n"
-                            f"正确示例: 5224900"
-                        )
-                        return False
-                    
-                    if len(bin_prefix) < 6:
-                        QMessageBox.critical(
-                            self,
-                            "保存失败",
-                            "❌ BIN 卡头前缀至少需要6位数字！\n\n"
-                            f"当前输入: {bin_prefix} ({len(bin_prefix)}位)\n"
-                            f"正确示例: 5224900 (7位)"
-                        )
-                        return False
+            text = self.card_list_input.toPlainText().strip()
+            if text:
+                lines = [line.strip() for line in text.split('\n') if line.strip()]
                 
-                elif card_mode == 'import':
-                    # 右边：必须有导入的卡号
-                    if len(imported_cards) == 0:
-                        QMessageBox.critical(
-                            self,
-                            "保存失败",
-                            "❌ 未导入任何卡号！\n\n"
-                            "启用自动绑卡时，必须导入至少一组卡号。\n\n"
-                            "请导入卡号，或禁用自动绑卡功能。"
-                        )
-                        return False
+                # 验证格式
+                validation_errors = []
+                for i, line in enumerate(lines[:500], 1):
+                    parts = line.split('|')
+                    
+                    # 检查格式
+                    if len(parts) != 4:
+                        validation_errors.append(f"第{i}行: 格式错误（应为：卡号|月份|年份|CVV）")
+                        continue
+                    
+                    card_num, month, year, cvv = parts
+                    
+                    # 验证卡号（16位数字）
+                    if not card_num.isdigit() or len(card_num) != 16:
+                        validation_errors.append(f"第{i}行: 卡号必须是16位数字")
+                        continue
+                    
+                    # 验证月份（01-12）
+                    if not month.isdigit() or not (1 <= int(month) <= 12):
+                        validation_errors.append(f"第{i}行: 月份必须是01-12")
+                        continue
+                    
+                    # 验证年份（4位数字）
+                    if not year.isdigit() or len(year) != 4:
+                        validation_errors.append(f"第{i}行: 年份必须是4位数字（如2025）")
+                        continue
+                    
+                    # 验证CVV（3位数字）
+                    if not cvv.isdigit() or len(cvv) != 3:
+                        validation_errors.append(f"第{i}行: CVV必须是3位数字")
+                        continue
+                    
+                    # 格式正确，添加到列表
+                    imported_cards.append({
+                        'number': card_num,
+                        'month': month,
+                        'year': year,
+                        'cvv': cvv
+                    })
+                
+                # 如果有格式错误，显示并终止保存
+                if validation_errors:
+                    error_msg = "\n".join(validation_errors[:10])
+                    if len(validation_errors) > 10:
+                        error_msg += f"\n... 还有 {len(validation_errors) - 10} 个错误"
+                    
+                    QMessageBox.critical(
+                        self,
+                        "格式错误",
+                        f"❌ 保存失败！发现 {len(validation_errors)} 个格式错误：\n\n"
+                        f"{error_msg}\n\n"
+                        f"请修正错误后再保存。\n"
+                        f"有效卡号: {len(imported_cards)} 组"
+                    )
+                    return False  # 终止保存
+            
+            # 如果启用了自动绑卡，检查是否有导入的卡号
+            if self.enable_checkbox.isChecked():
+                if len(imported_cards) == 0:
+                    QMessageBox.critical(
+                        self,
+                        "保存失败",
+                        "❌ 未导入任何卡号！\n\n"
+                        "启用自动绑卡时，必须导入至少一组卡号。\n\n"
+                        "请导入卡号，或禁用自动绑卡功能。"
+                    )
+                    return False
             
             # 读取配置
             payment_config = {
                 'enabled': self.enable_checkbox.isChecked(),
                 'auto_fill': self.auto_fill_checkbox.isChecked(),
                 'skip_on_error': self.skip_radio.isChecked(),
-                'card_mode': card_mode,
-                'card_bin_prefix': self.bin_input.text().strip() or '5224900',
+                'card_mode': 'import',  # 固定为导入模式
                 'imported_cards': imported_cards,
                 'fixed_info': {
                     'enabled': self.fixed_info_checkbox.isChecked(),
