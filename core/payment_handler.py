@@ -117,44 +117,30 @@ class VirtualCardGenerator:
         except:
             fixed_info = {}
         
-        # 读取卡号模式配置
-        try:
-            import json
-            config_file = get_config_file()  # ⭐ 使用用户目录配置文件
-            if config_file.exists():
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                card_mode = config.get('payment_binding', {}).get('card_mode', 'auto_generate')
-            else:
-                card_mode = 'auto_generate'
-        except:
-            card_mode = 'auto_generate'
+        # ⭐ 固定使用导入模式（已删除自动生成功能）
+        card_mode = 'import'
         
-        # 根据模式获取卡号
+        # 从卡池获取卡号
         used_card_number = None  # 记录使用的卡号（用于绑卡成功后删除）
         full_card_data = None  # 记录完整的卡片数据（包括month、year、cvv）
         
-        if card_mode == 'import':
-            # 从卡池获取
-            logger.info("使用导入的卡号")
-            card_data = VirtualCardGenerator.get_card_from_pool()
-            if card_data:
-                card_number = card_data['number']
-                used_card_number = card_number  # 记录卡号
-                full_card_data = card_data  # 记录完整数据
-                logger.info(f"  从卡池获取: {card_number}")
-                logger.info(f"  有效期: {card_data['month']}/{card_data['year']}")
-                logger.info(f"  CVV: {card_data['cvv']}")
-            else:
-                logger.warning("卡池为空，改用自动生成")
-                card_gen = VirtualCardGenerator()
-                card_number = card_gen.generate_card_number()
+        logger.info("从卡池获取导入的卡号...")
+        card_data = VirtualCardGenerator.get_card_from_pool()
+        
+        if card_data:
+            # 成功从卡池获取卡号
+            card_number = card_data['number']
+            used_card_number = card_number  # 记录卡号，绑卡成功后删除
+            full_card_data = card_data  # 记录完整数据
+            logger.info(f"  ✅ 从卡池获取: {card_number}")
+            logger.info(f"  有效期: {card_data['month']}/{card_data['year']}")
+            logger.info(f"  CVV: {card_data['cvv']}")
+            logger.info(f"  ⭐ 已标记删除: {used_card_number}")
         else:
-            # 自动生成
-            logger.info("使用自动生成卡号")
-            card_gen = VirtualCardGenerator()
-            card_number = card_gen.generate_card_number()
-            logger.info(f"  生成卡号: {card_number}")
+            # 卡池为空，报错
+            logger.error("❌ 卡池为空，无法获取卡号！")
+            logger.error("   请在'自动绑卡配置'中导入卡号")
+            raise Exception("卡池为空，无法绑卡")
         
         # 检查是否启用固定信息
         use_fixed = fixed_info.get('enabled', False)
