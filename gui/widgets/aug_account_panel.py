@@ -32,6 +32,11 @@ class AugAccountCard(QFrame):
         super().__init__(parent)
         self.account_data = account_data
         self.setFrameShape(QFrame.Shape.Box)
+        
+        # ⭐ 限制卡片最大宽度
+        self.setMaximumWidth(650)
+        self.setMinimumWidth(400)
+        
         self.setStyleSheet("""
             AugAccountCard {
                 background-color: white;
