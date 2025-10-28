@@ -258,6 +258,246 @@ class AugRegisterWorker(QThread):
             self.log_signal.emit(f"  ❌ 填写验证码异常: {e}")
             return False
     
+    def _click_skip_button(self, tab):
+        """点击Skip for now按钮"""
+        try:
+            import time
+            
+            self.log_signal.emit(f"  查找Skip for now按钮...")
+            
+            skip_selectors = [
+                'button:contains("Skip for now")',
+                'button:contains("Skip")',
+                'a:contains("Skip for now")',
+                'a:contains("Skip")'
+            ]
+            
+            for selector in skip_selectors:
+                try:
+                    skip_btn = tab.ele(selector, timeout=2)
+                    if skip_btn:
+                        self.log_signal.emit(f"  ✅ 找到Skip按钮，点击...")
+                        skip_btn.click()
+                        time.sleep(3)
+                        return True
+                except:
+                    continue
+            
+            self.log_signal.emit(f"  ⚠️ 未找到Skip按钮")
+            return False
+            
+        except Exception as e:
+            logger.error(f"点击Skip失败: {e}")
+            return False
+    
+    def _get_auth_code(self, tab):
+        """获取授权code"""
+        try:
+            import time
+            import re
+            
+            time.sleep(2)  # 等待页面加载
+            current_url = tab.url
+            self.log_signal.emit(f"  当前URL: {current_url}")
+            
+            # 检查是否在complete-signup页面
+            if 'complete-signup' in current_url:
+                self.log_signal.emit(f"  ✅ 已进入complete-signup页面")
+                
+                # 查找code元素（可能在页面文本中）
+                # 尝试从页面获取包含code的文本
+                page_text = tab.html
+                
+                # 使用正则提取code（JSON格式）
+                code_pattern = r'\{"code":"([^"]+)"\}'
+                match = re.search(code_pattern, page_text)
+                
+                if match:
+                    code_json = match.group(0)
+                    self.log_signal.emit(f"  ✅ 找到code: {code_json}")
+                    return code_json
+                
+                # 尝试查找code文本元素
+                try:
+                    code_elem = tab.ele('text:code', timeout=2)
+                    if code_elem:
+                        code_text = code_elem.text
+                        self.log_signal.emit(f"  ✅ 找到code元素: {code_text}")
+                        return code_text
+                except:
+                    pass
+                
+                self.log_signal.emit(f"  ⚠️ 未找到code")
+                return None
+            else:
+                self.log_signal.emit(f"  ⚠️ 未进入complete-signup页面")
+                return None
+                
+        except Exception as e:
+            logger.error(f"获取code失败: {e}")
+            return None
+    
+    def _handle_payment(self, tab, email, code_data):
+        """处理绑卡流程"""
+        try:
+            import time
+            
+            # 1. 回退到onboard页面
+            self.log_signal.emit(f"  点击浏览器回退...")
+            tab.back()
+            time.sleep(2)
+            
+            # 2. 点击Add Payment Method
+            self.log_signal.emit(f"  查找Add Payment Method按钮...")
+            
+            add_payment_selectors = [
+                'button:contains("Add Payment Method")',
+                'a:contains("Add Payment Method")',
+                'button:contains("添加支付方式")'
+            ]
+            
+            for selector in add_payment_selectors:
+                try:
+                    add_btn = tab.ele(selector, timeout=2)
+                    if add_btn:
+                        self.log_signal.emit(f"  ✅ 找到按钮，点击...")
+                        add_btn.click()
+                        time.sleep(3)
+                        break
+                except:
+                    continue
+            
+            # 3. 等待跳转到绑卡页面
+            current_url = tab.url
+            self.log_signal.emit(f"  当前URL: {current_url}")
+            
+            if 'billing.augmentcode.com' in current_url or 'pay' in current_url:
+                self.log_signal.emit(f"  ✅ 已进入绑卡页面")
+                
+                # 4. 填写支付信息
+                payment_success = self._fill_payment_info(tab)
+                
+                return payment_success
+            else:
+                self.log_signal.emit(f"  ⚠️ 未进入绑卡页面")
+                return False
+                
+        except Exception as e:
+            logger.error(f"处理绑卡失败: {e}")
+            self.log_signal.emit(f"  ❌ 绑卡处理异常: {e}")
+            return False
+    
+    def _fill_payment_info(self, tab):
+        """填写支付信息"""
+        try:
+            from core.card_pool_manager import get_card_pool_manager
+            from core.payment_handler import VirtualCardGenerator
+            import time
+            
+            self.log_signal.emit(f"  获取卡号...")
+            
+            # 从卡池获取卡号
+            card_data = VirtualCardGenerator.get_card_from_pool()
+            
+            if not card_data:
+                self.log_signal.emit(f"  ❌ 卡池为空，无法绑卡")
+                return False
+            
+            card_number = card_data['number']
+            month = card_data['month']
+            year = card_data['year']
+            cvv = card_data['cvv']
+            
+            self.log_signal.emit(f"  卡号: {card_number}")
+            self.log_signal.emit(f"  有效期: {month}/{year}")
+            self.log_signal.emit(f"  CVV: {cvv}")
+            
+            # 填写卡号
+            self.log_signal.emit(f"  填写卡号...")
+            card_input = tab.ele('input[placeholder*="1234"]', timeout=3)
+            if card_input:
+                card_input.input(card_number)
+                time.sleep(1)
+                self.log_signal.emit(f"  ✅ 卡号已填写")
+            else:
+                self.log_signal.emit(f"  ❌ 未找到卡号输入框")
+                return False
+            
+            # 填写有效期（月份/年份）
+            self.log_signal.emit(f"  填写有效期...")
+            expiry_input = tab.ele('input[placeholder*="月份"]', timeout=2)
+            if not expiry_input:
+                expiry_input = tab.ele('input[placeholder*="MM"]', timeout=2)
+            
+            if expiry_input:
+                expiry_input.input(f"{month}/{year[-2:]}")
+                time.sleep(1)
+                self.log_signal.emit(f"  ✅ 有效期已填写")
+            else:
+                self.log_signal.emit(f"  ⚠️ 未找到有效期输入框")
+            
+            # 填写CVV
+            self.log_signal.emit(f"  填写CVV...")
+            cvv_input = tab.ele('input[placeholder*="CVC"]', timeout=2)
+            if not cvv_input:
+                cvv_input = tab.ele('input[placeholder*="CVV"]', timeout=2)
+            
+            if cvv_input:
+                cvv_input.input(cvv)
+                time.sleep(1)
+                self.log_signal.emit(f"  ✅ CVV已填写")
+            else:
+                self.log_signal.emit(f"  ⚠️ 未找到CVV输入框")
+            
+            # 填写姓名
+            self.log_signal.emit(f"  填写姓名...")
+            name_input = tab.ele('input[placeholder*="全名"]', timeout=2)
+            if not name_input:
+                name_input = tab.ele('input[placeholder*="name"]', timeout=2)
+            
+            if name_input:
+                name = "Test User"  # TODO: 从配置读取或随机生成
+                name_input.input(name)
+                time.sleep(1)
+                self.log_signal.emit(f"  ✅ 姓名已填写")
+            
+            # 国家/地址等其他字段...
+            # TODO: 根据实际页面补充
+            
+            # 点击提交
+            self.log_signal.emit(f"  查找提交按钮...")
+            submit_selectors = [
+                'button:contains("保存")',
+                'button:contains("Submit")',
+                'button[type="submit"]',
+                'button:contains("确认")'
+            ]
+            
+            for selector in submit_selectors:
+                try:
+                    submit_btn = tab.ele(selector, timeout=2)
+                    if submit_btn:
+                        self.log_signal.emit(f"  ✅ 找到提交按钮，点击...")
+                        submit_btn.click()
+                        time.sleep(3)
+                        
+                        # 删除已使用的卡号
+                        card_manager = get_card_pool_manager()
+                        card_manager.remove_card_by_number(card_number)
+                        self.log_signal.emit(f"  ✅ 已删除使用的卡号")
+                        
+                        return True
+                except:
+                    continue
+            
+            self.log_signal.emit(f"  ⚠️ 未找到提交按钮")
+            return False
+            
+        except Exception as e:
+            logger.error(f"填写支付信息失败: {e}")
+            self.log_signal.emit(f"  ❌ 填写支付信息异常: {e}")
+            return False
+    
     def run(self):
         """执行批量注册"""
         self.log_signal.emit(f"开始批量注册 {self.count} 个Aug账号...\n")
@@ -451,9 +691,43 @@ class AugRegisterWorker(QThread):
                 if success:
                     self.log_signal.emit(f"  ✅ 验证码已填写并提交")
                     
-                    # TODO: 等待授权完成
-                    # TODO: 获取accessToken
-                    # TODO: 保存账号信息
+                    # 9. 处理onboard页面 - 点击Skip
+                    self.log_signal.emit(f"\n步骤9: 处理onboard页面...")
+                    time.sleep(5)  # 等待页面加载
+                    
+                    current_url = tab.url
+                    self.log_signal.emit(f"  当前URL: {current_url}")
+                    
+                    if 'onboard' in current_url:
+                        self.log_signal.emit(f"  ✅ 已进入onboard页面")
+                        
+                        # 点击Skip for now
+                        skip_success = self._click_skip_button(tab)
+                        
+                        if skip_success:
+                            # 10. 获取并保存code
+                            self.log_signal.emit(f"\n步骤10: 获取授权code...")
+                            code_data = self._get_auth_code(tab)
+                            
+                            if code_data:
+                                self.log_signal.emit(f"  ✅ 获取到code: {code_data[:50]}...")
+                                
+                                # 11. 返回并绑卡
+                                self.log_signal.emit(f"\n步骤11: 返回绑卡...")
+                                payment_success = self._handle_payment(tab, email, code_data)
+                                
+                                if payment_success:
+                                    self.log_signal.emit(f"  ✅ 绑卡成功")
+                                    # TODO: 保存账号信息
+                                else:
+                                    self.log_signal.emit(f"  ⚠️ 绑卡失败")
+                            else:
+                                self.log_signal.emit(f"  ❌ 未获取到code")
+                        else:
+                            self.log_signal.emit(f"  ⚠️ Skip按钮处理失败")
+                    else:
+                        self.log_signal.emit(f"  ⚠️ 未进入onboard页面")
+                        self.log_signal.emit(f"  💡 浏览器保持打开")
                 else:
                     self.log_signal.emit(f"  ⚠️ 验证码填写失败")
                     self.log_signal.emit(f"  💡 浏览器保持打开")
