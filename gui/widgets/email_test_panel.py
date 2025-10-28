@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QGroupBox, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QMovie
 
 # 添加项目根目录到路径
@@ -25,6 +25,39 @@ from utils.app_paths import get_config_file
 from utils.resource_path import get_gui_resource
 
 logger = get_logger("email_test_panel")
+
+
+class FetchEmailThread(QThread):
+    """获取邮件的工作线程（避免UI无响应）"""
+    
+    finished = pyqtSignal(list)  # 完成信号，传递邮件列表
+    error = pyqtSignal(str)  # 错误信号
+    
+    def __init__(self, account, receiving_email, pin, minutes=5):
+        super().__init__()
+        self.account = account
+        self.receiving_email = receiving_email
+        self.pin = pin
+        self.minutes = minutes
+    
+    def run(self):
+        """执行获取邮件"""
+        try:
+            from core.email_verification import EmailVerificationHandler
+            
+            handler = EmailVerificationHandler(
+                account=self.account,
+                receiving_email=self.receiving_email,
+                receiving_pin=self.pin
+            )
+            
+            # 获取邮件
+            emails = handler.get_emails(limit=20, minutes=self.minutes)
+            self.finished.emit(emails)
+            
+        except Exception as e:
+            logger.error(f"线程获取邮件失败: {e}")
+            self.error.emit(str(e))
 
 
 class EmailTestPanel(QWidget):
@@ -573,24 +606,41 @@ class EmailTestPanel(QWidget):
             QMessageBox.critical(self, "错误", f"刷新收件箱时出错：\n\n{e}")
     
     def _fetch_inbox_emails(self):
-        """获取收件箱邮件（只显示5分钟内的）"""
+        """获取收件箱邮件（使用线程，避免UI无响应）"""
         try:
             receiving_email = self.receiving_email_input.text().strip()
             pin = self.pin_input.text().strip()
             
-            # 使用邮箱验证处理器
-            from core.email_verification import EmailVerificationHandler
+            # ⭐ 禁用按钮，防止重复点击
+            self.refresh_inbox_btn.setEnabled(False)
+            self.view_inbox_btn.setEnabled(False)
             
-            handler = EmailVerificationHandler(
+            # ⭐ 使用线程异步获取邮件
+            self.fetch_thread = FetchEmailThread(
                 account=self.current_generated_email,
                 receiving_email=receiving_email,
-                receiving_pin=pin
+                pin=pin,
+                minutes=5
             )
             
-            # ⭐ 获取最近5分钟的邮件列表
-            logger.info(f"获取邮件: {self.current_generated_email}")
-            emails = handler.get_emails(limit=20, minutes=5)
+            # 连接信号
+            self.fetch_thread.finished.connect(self._on_emails_fetched)
+            self.fetch_thread.error.connect(self._on_fetch_error)
             
+            # 启动线程
+            self.fetch_thread.start()
+            
+            logger.info(f"✅ 异步获取邮件线程已启动")
+            
+        except Exception as e:
+            logger.error(f"启动获取邮件线程失败: {e}")
+            self.inbox_text.clear()
+            self.inbox_text.append(f"❌ 启动失败: {e}")
+            self._enable_buttons()
+    
+    def _on_emails_fetched(self, emails):
+        """邮件获取完成的回调"""
+        try:
             # ⭐ 保存邮件列表（用于清理）
             self.current_emails = emails
             
@@ -603,61 +653,72 @@ class EmailTestPanel(QWidget):
                 self.inbox_text.append("  • 只显示最近5分钟内的邮件\n")
                 self.inbox_text.append("  • 邮件可能需要几秒钟才能到达\n")
                 self.inbox_text.append("  • 点击'刷新收件箱'获取最新邮件")
-                return
-            
-            # 显示邮件
-            self.inbox_info_label.setText(f"最近5分钟收到 {len(emails)} 封邮件")
-            
-            self.inbox_text.append(f"📬 收件箱：{self.current_generated_email}\n")
-            self.inbox_text.append(f"共 {len(emails)} 封邮件（最近5分钟）\n")
-            self.inbox_text.append("=" * 60 + "\n")
-            
-            for i, email in enumerate(emails, 1):
-                self.inbox_text.append(f"\n【邮件 {i}】")
-                self.inbox_text.append(f"发件人: {email.get('from', 'N/A')}")
-                self.inbox_text.append(f"主题: {email.get('subject', 'N/A')}")
+            else:
+                # 显示邮件
+                self.inbox_info_label.setText(f"最近5分钟收到 {len(emails)} 封邮件")
                 
-                # 格式化时间显示
-                mail_date = email.get('date', 'N/A')
-                if mail_date != 'N/A':
-                    try:
-                        import time as time_module
-                        timestamp = int(mail_date)
-                        time_str = time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(timestamp))
-                        self.inbox_text.append(f"时间: {time_str}")
-                    except:
-                        self.inbox_text.append(f"时间: {mail_date}")
-                else:
-                    self.inbox_text.append(f"时间: {mail_date}")
+                self.inbox_text.append(f"📬 收件箱：{self.current_generated_email}\n")
+                self.inbox_text.append(f"共 {len(emails)} 封邮件（最近5分钟）\n")
+                self.inbox_text.append("=" * 60 + "\n")
                 
-                # 邮件内容
-                body = email.get('body', '')
-                if body:
-                    # 查找验证码
-                    import re
-                    code_match = re.search(r'\b\d{6}\b', body)
-                    if code_match:
-                        code = code_match.group()
-                        self.inbox_text.append(f"✅ 验证码: {code}")
+                for i, email in enumerate(emails, 1):
+                    self.inbox_text.append(f"\n【邮件 {i}】")
+                    self.inbox_text.append(f"发件人: {email.get('from', 'N/A')}")
+                    self.inbox_text.append(f"主题: {email.get('subject', 'N/A')}")
                     
-                    self.inbox_text.append(f"\n内容预览:")
-                    # 只显示前200个字符
-                    preview = body[:200] + ('...' if len(body) > 200 else '')
-                    self.inbox_text.append(preview)
+                    # 格式化时间显示
+                    mail_date = email.get('date', 'N/A')
+                    if mail_date != 'N/A':
+                        try:
+                            import time as time_module
+                            timestamp = int(mail_date)
+                            time_str = time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(timestamp))
+                            self.inbox_text.append(f"时间: {time_str}")
+                        except:
+                            self.inbox_text.append(f"时间: {mail_date}")
+                    else:
+                        self.inbox_text.append(f"时间: {mail_date}")
+                    
+                    # 邮件内容
+                    body = email.get('body', '')
+                    if body:
+                        # 查找验证码
+                        import re
+                        code_match = re.search(r'\b\d{6}\b', body)
+                        if code_match:
+                            code = code_match.group()
+                            self.inbox_text.append(f"✅ 验证码: {code}")
+                        
+                        self.inbox_text.append(f"\n内容预览:")
+                        # 只显示前200个字符
+                        preview = body[:200] + ('...' if len(body) > 200 else '')
+                        self.inbox_text.append(preview)
+                    
+                    self.inbox_text.append("\n" + "-" * 60)
                 
-                self.inbox_text.append("\n" + "-" * 60)
+                logger.info(f"✅ 显示 {len(emails)} 封邮件")
             
-            logger.info(f"✅ 显示 {len(emails)} 封邮件")
-            
-        except Exception as e:
-            logger.error(f"获取邮件失败: {e}", exc_info=True)
-            self.inbox_text.clear()
-            self.inbox_text.append(f"❌ 获取邮件失败\n\n")
-            self.inbox_text.append(f"错误: {str(e)}\n\n")
-            self.inbox_text.append("💡 请检查：\n")
-            self.inbox_text.append("  1. 接收邮箱和PIN码是否正确\n")
-            self.inbox_text.append("  2. 网络连接是否正常\n")
-            self.inbox_text.append("  3. tempmail.plus 是否可访问")
+        finally:
+            # ⭐ 恢复按钮状态
+            self._enable_buttons()
+    
+    def _on_fetch_error(self, error_msg):
+        """邮件获取失败的回调"""
+        self.inbox_text.clear()
+        self.inbox_text.append(f"❌ 获取邮件失败\n\n")
+        self.inbox_text.append(f"错误: {error_msg}\n\n")
+        self.inbox_text.append("💡 请检查：\n")
+        self.inbox_text.append("  1. 接收邮箱和PIN码是否正确\n")
+        self.inbox_text.append("  2. 网络连接是否正常\n")
+        self.inbox_text.append("  3. tempmail.plus 是否可访问")
+        
+        # ⭐ 恢复按钮状态
+        self._enable_buttons()
+    
+    def _enable_buttons(self):
+        """恢复按钮状态"""
+        self.refresh_inbox_btn.setEnabled(True)
+        self.view_inbox_btn.setEnabled(True)
     
     def _on_clear_inbox(self):
         """清理邮件"""

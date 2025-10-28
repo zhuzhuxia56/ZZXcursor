@@ -79,8 +79,11 @@ class BrowserManager:
             co.set_user_data_path(str(temp_dir))
             logger.info(f"✅ 使用默认用户数据目录: {temp_dir}")
         
-        # ⚡ 无头模式时不加载扩展（扩展在无头模式下可能有问题）
-        if not headless:
+        # ⚡ 非无头模式时加载扩展（扩展在无头模式和无痕模式下可能有问题）
+        # ⭐ 但是如果明确指定了incognito=False，说明用户需要扩展，应该加载
+        should_load_extension = not headless and (incognito is False or incognito is None)
+        
+        if should_load_extension:
             # 加载 turnstilePatch 扩展
             try:
                 extension_path = self._get_extension_path("turnstilePatch")
@@ -88,6 +91,11 @@ class BrowserManager:
                 logger.info(f"✅ 加载扩展: {extension_path}")
             except FileNotFoundError as e:
                 logger.warning(f"警告: {e}")
+        else:
+            if headless:
+                logger.info("⏭️ 无头模式，跳过扩展加载")
+            elif incognito:
+                logger.info("⏭️ 无痕模式可能不支持扩展，跳过加载")
 
         # 浏览器配置
         co.set_pref("credentials_enable_service", False)
