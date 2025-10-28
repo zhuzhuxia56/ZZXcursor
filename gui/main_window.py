@@ -1615,18 +1615,18 @@ class MainWindow(QMainWindow):
             logger.error(f"显示服务器错误警告失败: {e}")
     
     def _on_create_fingerprint_browser(self):
-        """生成指纹浏览器"""
+        """生成指纹浏览器（简化版，只生成不访问）"""
         try:
             from core.browser_manager import BrowserManager
             from core.machine_id_generator import generate_machine_info
             import tempfile
             
             self.current_panel.log("=" * 60)
-            self.current_panel.log("🖐️ 开始生成指纹浏览器...")
+            self.current_panel.log("🖐️ 生成指纹浏览器...")
             self.current_panel.log("=" * 60)
             
-            # 1. 生成设备指纹
-            self.current_panel.log("\n步骤1: 生成设备指纹...")
+            # 1. 生成随机设备指纹
+            self.current_panel.log("\n📌 生成随机设备指纹...")
             machine_info = generate_machine_info()
             
             self.current_panel.log(f"✅ 设备指纹已生成:")
@@ -1637,11 +1637,11 @@ class MainWindow(QMainWindow):
             self.current_panel.log(f"  machineGuid: {machine_info.get('system.machineGuid', 'N/A')}")
             
             # 2. 创建独立的用户数据目录
-            self.current_panel.log("\n步骤2: 创建浏览器实例...")
             temp_dir = tempfile.mkdtemp(prefix="fingerprint_browser_")
-            self.current_panel.log(f"  用户数据目录: {temp_dir}")
+            self.current_panel.log(f"\n📂 用户数据目录: {temp_dir}")
             
-            # 3. 初始化浏览器
+            # 3. 初始化浏览器（只生成，不访问页面）
+            self.current_panel.log("\n🌐 启动浏览器...")
             browser_manager = BrowserManager()
             browser = browser_manager.init_browser(
                 incognito=False,  # 不使用无痕模式，保留指纹
@@ -1649,30 +1649,21 @@ class MainWindow(QMainWindow):
                 user_data_dir=temp_dir
             )
             
-            self.current_panel.log("✅ 浏览器实例已创建")
+            # ⭐ 只生成浏览器，不访问任何页面（避免连接断开错误）
+            self.current_panel.log("✅ 浏览器已打开（空白页）")
             
-            # 4. 访问测试页面
-            self.current_panel.log("\n步骤3: 访问 Cursor 主页...")
-            tab = browser.latest_tab
-            tab.get("https://www.cursor.com")
-            
-            self.current_panel.log("✅ 已访问 Cursor 主页")
-            self.current_panel.log(f"  当前URL: {tab.url}")
-            
-            # 5. 显示完成信息
+            # 4. 显示完成信息
             self.current_panel.log("\n" + "=" * 60)
             self.current_panel.log("✅ 指纹浏览器生成完成！")
             self.current_panel.log("=" * 60)
             self.current_panel.log("\n💡 提示:")
-            self.current_panel.log("  • 浏览器已打开并保持运行")
-            self.current_panel.log("  • 已生成独立的设备指纹")
-            self.current_panel.log("  • 可以手动进行任何操作")
-            self.current_panel.log("  • 关闭浏览器后数据不会保留")
-            self.current_panel.log(f"  • 用户数据目录: {temp_dir}")
+            self.current_panel.log("  • 浏览器已打开，可手动操作")
+            self.current_panel.log("  • 每次生成都是新的随机指纹")
+            self.current_panel.log("  • 关闭后数据不保留")
             
             # Toast通知
             from gui.widgets.toast_notification import show_toast
-            show_toast(self, "✅ 指纹浏览器已生成！", duration=3000)
+            show_toast(self, "✅ 指纹浏览器已生成！", duration=2000)
             
         except Exception as e:
             logger.error(f"生成指纹浏览器失败: {e}", exc_info=True)
