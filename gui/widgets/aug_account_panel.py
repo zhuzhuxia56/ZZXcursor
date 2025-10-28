@@ -414,6 +414,6 @@ class AugAccountPanel(QWidget):
     def _on_registration_completed(self, count):
         """注册完成后刷新列表"""
         logger.info(f"批量注册完成，成功 {count} 个账号")
-        # TODO: 刷新账号列表
-        self._refresh_account_list()
+        # ⭐ 重新加载账号数据
+        self._load_test_data()
 

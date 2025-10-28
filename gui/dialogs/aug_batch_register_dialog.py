@@ -603,7 +603,7 @@ class AugRegisterWorker(QThread):
             tab.get(authorize_url)
             
             import time
-            time.sleep(3)  # 等待页面加载
+            time.sleep(2)  # 等待页面加载
             
             self.log_signal.emit(f"  ✅ 授权页面已打开")
             self.log_signal.emit(f"  当前URL: {tab.url}")
@@ -684,9 +684,13 @@ class AugRegisterWorker(QThread):
             # 7. 等待并获取邮箱验证码
             self.log_signal.emit(f"\n步骤7: 获取邮箱验证码...")
             
-            # 等待跳转到验证码页面
-            time.sleep(3)
-            current_url = tab.url
+            # ⭐ 最多等5秒，每秒检查URL
+            for wait_i in range(5):
+                time.sleep(1)
+                current_url = tab.url
+                if 'passwordless-email-challenge' in current_url or 'code' in current_url.lower():
+                    break
+            
             self.log_signal.emit(f"  当前URL: {current_url}")
             
             # 检查是否已经到验证码页面
@@ -712,9 +716,14 @@ class AugRegisterWorker(QThread):
                     
                     # 9. 处理onboard页面 - 点击Skip
                     self.log_signal.emit(f"\n步骤9: 处理onboard页面...")
-                    time.sleep(5)  # 等待页面加载
                     
-                    current_url = tab.url
+                    # ⭐ 最多等5秒，每秒检查URL
+                    for wait_i in range(5):
+                        time.sleep(1)
+                        current_url = tab.url
+                        if 'onboard' in current_url:
+                            break
+                    
                     self.log_signal.emit(f"  当前URL: {current_url}")
                     
                     if 'onboard' in current_url:
