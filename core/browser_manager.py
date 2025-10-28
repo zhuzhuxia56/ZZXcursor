@@ -79,29 +79,11 @@ class BrowserManager:
             co.set_user_data_path(str(temp_dir))
             logger.info(f"✅ 使用默认用户数据目录: {temp_dir}")
         
-        # ⚡ 非无头模式时加载扩展（扩展在无头模式和无痕模式下可能有问题）
-        # ⭐ 但是如果明确指定了incognito=False，说明用户需要扩展，应该加载
-        should_load_extension = not headless and (incognito is False or incognito is None)
-        
-        if should_load_extension:
-            # 加载 turnstilePatch 扩展
-            try:
-                extension_path = self._get_extension_path("turnstilePatch")
-                co.add_extension(extension_path)
-                logger.info(f"✅ 加载扩展: {extension_path}")
-            except FileNotFoundError as e:
-                logger.warning(f"警告: {e}")
-        else:
-            if headless:
-                logger.info("⏭️ 无头模式，跳过扩展加载")
-            elif incognito:
-                logger.info("⏭️ 无痕模式可能不支持扩展，跳过加载")
-
         # 浏览器配置
         co.set_pref("credentials_enable_service", False)
         co.set_argument("--hide-crash-restore-bubble")
         
-        # ⭐ 根据配置决定是否使用无痕模式
+        # ⭐ 先确定无痕模式的值
         logger.info("=" * 60)
         logger.info("📋 浏览器模式配置:")
         
@@ -112,6 +94,41 @@ class BrowserManager:
         else:
             logger.info(f"  ✅ 外部传入参数: incognito = {incognito}")
         
+        # ⭐ 根据最终的incognito值决定是否加载扩展
+        # 非无头模式 + 非无痕模式 = 加载扩展
+        should_load_extension = not headless and not incognito
+        
+        if should_load_extension:
+            # 加载 turnstilePatch 扩展
+            try:
+                extension_path = self._get_extension_path("turnstilePatch")
+                
+                # ⭐ 验证扩展目录和文件
+                import os
+                manifest_path = os.path.join(extension_path, "manifest.json")
+                script_path = os.path.join(extension_path, "script.js")
+                
+                logger.info(f"  📂 扩展目录: {extension_path}")
+                logger.info(f"  📄 manifest.json: {'✅ 存在' if os.path.exists(manifest_path) else '❌ 不存在'}")
+                logger.info(f"  📄 script.js: {'✅ 存在' if os.path.exists(script_path) else '❌ 不存在'}")
+                
+                # 加载扩展
+                co.add_extension(extension_path)
+                logger.info(f"  ✅ 扩展已添加到浏览器配置")
+                logger.info(f"  💡 提示: Manifest V3扩展不会显示在chrome://extensions")
+                logger.info(f"  💡 扩展会在访问页面时自动运行")
+                
+            except FileNotFoundError as e:
+                logger.warning(f"  ⚠️ 扩展目录不存在: {e}")
+            except Exception as e:
+                logger.error(f"  ❌ 扩展加载失败: {e}")
+        else:
+            if headless:
+                logger.info("  ⏭️ 无头模式，不加载扩展")
+            elif incognito:
+                logger.info("  ⏭️ 无痕模式，不加载扩展（扩展在无痕模式下不工作）")
+        
+        # 设置无痕模式
         if incognito:
             co.set_argument("--incognito")
             logger.info("  🕶️  无痕模式已启用")
