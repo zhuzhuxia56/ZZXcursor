@@ -148,6 +148,116 @@ class AugRegisterWorker(QThread):
             self.log_signal.emit(f"  ❌ 验证处理异常: {e}")
             return False
     
+    def _get_verification_code(self, email, max_retries=30):
+        """获取邮箱验证码"""
+        try:
+            from core.email_verification import EmailVerificationHandler
+            from utils.app_paths import get_config_file
+            import json
+            
+            # 读取邮箱配置
+            config_file = get_config_file()
+            if not config_file.exists():
+                self.log_signal.emit(f"  ❌ 未配置接收邮箱")
+                return None
+            
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            email_config = config.get('email', {})
+            receiving_email = email_config.get('receiving_email', '')
+            receiving_pin = email_config.get('receiving_email_pin', '')
+            
+            if not receiving_email or not receiving_pin:
+                self.log_signal.emit(f"  ❌ 接收邮箱或PIN码未配置")
+                return None
+            
+            self.log_signal.emit(f"  接收邮箱: {receiving_email}")
+            self.log_signal.emit(f"  开始获取验证码（最多等待30秒）...")
+            
+            # 使用邮箱验证处理器
+            handler = EmailVerificationHandler(
+                account=email,
+                receiving_email=receiving_email,
+                receiving_pin=receiving_pin
+            )
+            
+            # 获取验证码（带重试机制）
+            code = handler.get_verification_code(max_retries=max_retries, retry_interval=1)
+            
+            return code
+            
+        except Exception as e:
+            logger.error(f"获取验证码失败: {e}")
+            self.log_signal.emit(f"  ❌ 获取验证码异常: {e}")
+            return None
+    
+    def _fill_verification_code(self, tab, code):
+        """填写验证码并提交"""
+        try:
+            import time
+            
+            # 查找验证码输入框
+            self.log_signal.emit(f"  查找验证码输入框...")
+            
+            code_selectors = [
+                'input[placeholder*="code"]',
+                'input[placeholder*="Code"]',
+                'input[name="code"]',
+                'input[type="text"]',
+                'input[type="tel"]'
+            ]
+            
+            code_input = None
+            for selector in code_selectors:
+                try:
+                    code_input = tab.ele(selector, timeout=2)
+                    if code_input:
+                        self.log_signal.emit(f"  ✅ 找到验证码输入框")
+                        break
+                except:
+                    continue
+            
+            if not code_input:
+                self.log_signal.emit(f"  ❌ 未找到验证码输入框")
+                return False
+            
+            # 填写验证码
+            self.log_signal.emit(f"  填写验证码: {code}")
+            code_input.clear()  # 先清空
+            code_input.input(code)
+            time.sleep(1)
+            
+            # 查找并点击Continue按钮
+            self.log_signal.emit(f"  查找Continue按钮...")
+            
+            submit_selectors = [
+                'button:contains("Continue")',
+                'button[type="submit"]',
+                'button:contains("Submit")',
+                'button:contains("Verify")',
+                'button:contains("确认")'
+            ]
+            
+            for selector in submit_selectors:
+                try:
+                    submit_btn = tab.ele(selector, timeout=2)
+                    if submit_btn:
+                        self.log_signal.emit(f"  ✅ 找到Continue按钮，点击...")
+                        submit_btn.click()
+                        time.sleep(3)
+                        return True
+                except:
+                    continue
+            
+            self.log_signal.emit(f"  ⚠️ 未找到Continue按钮")
+            return False
+            
+        except Exception as e:
+            logger.error(f"填写验证码失败: {e}")
+            self.log_signal.emit(f"  ❌ 填写验证码异常: {e}")
+            return False
+    
     def run(self):
         """执行批量注册"""
         self.log_signal.emit(f"开始批量注册 {self.count} 个Aug账号...\n")
@@ -311,13 +421,45 @@ class AugRegisterWorker(QThread):
                     continue
             
             self.log_signal.emit(f"  ✅ 授权流程已启动")
-            self.log_signal.emit(f"  💡 浏览器保持打开，等待邮箱验证...")
             
-            # TODO: 监听邮箱验证码
-            # TODO: 自动填写验证码
-            # TODO: 完成授权
-            # TODO: 获取accessToken
-            # TODO: 保存账号信息
+            # 7. 等待并获取邮箱验证码
+            self.log_signal.emit(f"\n步骤7: 获取邮箱验证码...")
+            
+            # 等待跳转到验证码页面
+            time.sleep(3)
+            current_url = tab.url
+            self.log_signal.emit(f"  当前URL: {current_url}")
+            
+            # 检查是否已经到验证码页面
+            if 'passwordless-email-challenge' in current_url or 'code' in current_url.lower():
+                self.log_signal.emit(f"  ✅ 已进入验证码页面")
+                
+                # 获取验证码
+                code = self._get_verification_code(email)
+                
+                if not code:
+                    self.log_signal.emit(f"  ❌ 未获取到验证码")
+                    self.log_signal.emit(f"  💡 浏览器保持打开，请手动输入")
+                    return True
+                
+                self.log_signal.emit(f"  ✅ 获取到验证码: {code}")
+                
+                # 8. 填写验证码
+                self.log_signal.emit(f"\n步骤8: 填写验证码...")
+                success = self._fill_verification_code(tab, code)
+                
+                if success:
+                    self.log_signal.emit(f"  ✅ 验证码已填写并提交")
+                    
+                    # TODO: 等待授权完成
+                    # TODO: 获取accessToken
+                    # TODO: 保存账号信息
+                else:
+                    self.log_signal.emit(f"  ⚠️ 验证码填写失败")
+                    self.log_signal.emit(f"  💡 浏览器保持打开")
+            else:
+                self.log_signal.emit(f"  ⚠️ 未跳转到验证码页面")
+                self.log_signal.emit(f"  💡 浏览器保持打开")
             
             return True
             
