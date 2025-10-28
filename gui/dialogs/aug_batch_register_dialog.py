@@ -88,59 +88,60 @@ class AugRegisterWorker(QThread):
             return f"{random_letters}@ymwdes.cn"
     
     def _handle_human_verification(self, tab, max_wait=30):
-        """处理人机验证（复用Turnstile处理逻辑）"""
+        """处理人机验证"""
         try:
             from core.turnstile_handler import handle_turnstile
             import time
             
             self.log_signal.emit(f"  检测人机验证...")
             
-            # 检查是否有Turnstile验证框
+            # 1. 检查Turnstile验证框
             try:
                 turnstile_elem = tab.ele("#cf-turnstile", timeout=2)
                 if turnstile_elem:
                     self.log_signal.emit(f"  ✅ 检测到Turnstile验证框")
-                    self.log_signal.emit(f"  开始自动处理...")
-                    
-                    # 使用Cursor注册的Turnstile处理逻辑
                     success = handle_turnstile(tab, max_wait_seconds=max_wait)
-                    
                     if success:
                         self.log_signal.emit(f"  ✅ Turnstile验证已通过")
-                        return True
                     else:
                         self.log_signal.emit(f"  ⚠️ Turnstile验证超时")
-                        return False
+                    return success
             except:
-                # 没有找到Turnstile元素
                 pass
             
-            # 检查其他类型的验证框（如普通checkbox）
+            # 2. ⭐ 检查Aug的"Verify you are human"验证框
             try:
-                self.log_signal.emit(f"  查找验证复选框...")
-                checkbox_selectors = [
-                    'input[type="checkbox"]',
-                    'input[role="checkbox"]',
+                self.log_signal.emit(f"  查找'Verify you are human'验证框...")
+                
+                # Aug验证框的可能选择器
+                verify_selectors = [
+                    'text:Verify you are human',  # 包含文本
                     '[role="checkbox"]',
-                    '.checkbox'
+                    'input[type="checkbox"]'
                 ]
                 
-                for selector in checkbox_selectors:
+                found_verify = False
+                for selector in verify_selectors:
                     try:
-                        checkbox = tab.ele(selector, timeout=1)
-                        if checkbox:
-                            self.log_signal.emit(f"  ✅ 找到验证复选框，点击...")
-                            checkbox.click()
-                            time.sleep(2)
+                        verify_elem = tab.ele(selector, timeout=1)
+                        if verify_elem:
+                            self.log_signal.emit(f"  ✅ 找到验证元素（{selector}），点击...")
+                            verify_elem.click()
+                            time.sleep(3)  # 等待验证处理
                             self.log_signal.emit(f"  ✅ 已点击验证框")
-                            return True
+                            found_verify = True
+                            break
                     except:
                         continue
+                
+                if found_verify:
+                    return True
+                    
             except:
                 pass
             
-            # 没有检测到验证框，可能不需要验证
-            self.log_signal.emit(f"  ℹ️ 未检测到人机验证，继续...")
+            # 3. 如果都没找到，说明可能已经验证过了
+            self.log_signal.emit(f"  ℹ️ 未检测到人机验证元素，可能已通过")
             return True
             
         except Exception as e:
