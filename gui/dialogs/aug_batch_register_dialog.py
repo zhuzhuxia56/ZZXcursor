@@ -667,9 +667,12 @@ class AugRegisterWorker(QThread):
             self.log_signal.emit(f"  填写邮箱: {email}...")
             email_input.input(email)
             self.log_signal.emit(f"  [DEBUG] 邮箱已输入")
-            time.sleep(1)
             
-            # ⭐ 处理人机验证（类似Turnstile）
+            # ⭐ 等待Turnstile加载（填写邮箱后会触发）
+            self.log_signal.emit(f"\n  等待3秒让Turnstile加载...")
+            time.sleep(3)
+            
+            # ⭐ 处理人机验证（必须在点击Continue之前！）
             self.log_signal.emit(f"\n步骤5: 处理人机验证...")
             verification_success = self._handle_human_verification(tab)
             
@@ -679,13 +682,13 @@ class AugRegisterWorker(QThread):
                 return True  # 保持浏览器打开
             
             self.log_signal.emit(f"  ✅ 人机验证已通过")
+            
+            # ⭐ 验证通过后等待2秒
+            self.log_signal.emit(f"  等待2秒...")
             time.sleep(2)
             
             # ⭐ 查找并点击继续/提交按钮
             self.log_signal.emit(f"\n步骤6: 点击Continue按钮...")
-            
-            # 先等待按钮变为可点击状态
-            time.sleep(2)
             
             submit_clicked = False
             
