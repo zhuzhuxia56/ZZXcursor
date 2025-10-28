@@ -484,6 +484,15 @@ class MainWindow(QMainWindow):
         # 添加分隔符
         toolbar.addSeparator()
         
+        # ⭐ 生成指纹浏览器按钮
+        fingerprint_browser_action = QAction("🖐️ 生成指纹浏览器", self)
+        fingerprint_browser_action.setToolTip("生成一个带设备指纹的浏览器实例")
+        fingerprint_browser_action.triggered.connect(self._on_create_fingerprint_browser)
+        toolbar.addAction(fingerprint_browser_action)
+        
+        # 添加分隔符
+        toolbar.addSeparator()
+        
         # 深色模式切换按钮
         self.theme_toggle_action = QAction(self._get_theme_icon(), self)
         self.theme_toggle_action.setToolTip("切换深色/浅色模式")
@@ -1604,6 +1613,75 @@ class MainWindow(QMainWindow):
             ))
         except Exception as e:
             logger.error(f"显示服务器错误警告失败: {e}")
+    
+    def _on_create_fingerprint_browser(self):
+        """生成指纹浏览器"""
+        try:
+            from core.browser_manager import BrowserManager
+            from core.machine_id_generator import generate_machine_id
+            import tempfile
+            
+            self.current_panel.log("=" * 60)
+            self.current_panel.log("🖐️ 开始生成指纹浏览器...")
+            self.current_panel.log("=" * 60)
+            
+            # 1. 生成设备指纹
+            self.current_panel.log("\n步骤1: 生成设备指纹...")
+            machine_info = generate_machine_id()
+            
+            self.current_panel.log(f"✅ 设备指纹已生成:")
+            self.current_panel.log(f"  machineId: {machine_info.get('telemetry.machineId', 'N/A')[:50]}...")
+            self.current_panel.log(f"  macMachineId: {machine_info.get('telemetry.macMachineId', 'N/A')}")
+            self.current_panel.log(f"  devDeviceId: {machine_info.get('telemetry.devDeviceId', 'N/A')}")
+            self.current_panel.log(f"  sqmId: {machine_info.get('telemetry.sqmId', 'N/A')}")
+            self.current_panel.log(f"  machineGuid: {machine_info.get('system.machineGuid', 'N/A')}")
+            
+            # 2. 创建独立的用户数据目录
+            self.current_panel.log("\n步骤2: 创建浏览器实例...")
+            temp_dir = tempfile.mkdtemp(prefix="fingerprint_browser_")
+            self.current_panel.log(f"  用户数据目录: {temp_dir}")
+            
+            # 3. 初始化浏览器
+            browser_manager = BrowserManager()
+            browser = browser_manager.init_browser(
+                incognito=False,  # 不使用无痕模式，保留指纹
+                headless=False,   # 可见模式
+                user_data_dir=temp_dir
+            )
+            
+            self.current_panel.log("✅ 浏览器实例已创建")
+            
+            # 4. 访问测试页面
+            self.current_panel.log("\n步骤3: 访问 Cursor 主页...")
+            tab = browser.latest_tab
+            tab.get("https://www.cursor.com")
+            
+            self.current_panel.log("✅ 已访问 Cursor 主页")
+            self.current_panel.log(f"  当前URL: {tab.url}")
+            
+            # 5. 显示完成信息
+            self.current_panel.log("\n" + "=" * 60)
+            self.current_panel.log("✅ 指纹浏览器生成完成！")
+            self.current_panel.log("=" * 60)
+            self.current_panel.log("\n💡 提示:")
+            self.current_panel.log("  • 浏览器已打开并保持运行")
+            self.current_panel.log("  • 已生成独立的设备指纹")
+            self.current_panel.log("  • 可以手动进行任何操作")
+            self.current_panel.log("  • 关闭浏览器后数据不会保留")
+            self.current_panel.log(f"  • 用户数据目录: {temp_dir}")
+            
+            # Toast通知
+            from gui.widgets.toast_notification import show_toast
+            show_toast(self, "✅ 指纹浏览器已生成！", duration=3000)
+            
+        except Exception as e:
+            logger.error(f"生成指纹浏览器失败: {e}", exc_info=True)
+            self.current_panel.log(f"\n❌ 生成失败: {e}")
+            QMessageBox.critical(
+                self,
+                "生成失败",
+                f"生成指纹浏览器时出错：\n\n{e}\n\n请查看日志获取详细信息。"
+            )
     
     def _on_about(self):
         """关于"""
