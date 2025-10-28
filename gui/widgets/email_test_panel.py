@@ -36,6 +36,7 @@ class EmailTestPanel(QWidget):
         
         self.config = self._load_config()
         self.has_unsaved_changes = False  # 未保存标记
+        self.current_generated_email = None  # 当前生成的邮箱
         
         self._setup_ui()
         self._connect_change_signals()  # 连接变更信号
@@ -201,6 +202,13 @@ class EmailTestPanel(QWidget):
         self.generated_email_label.setWordWrap(True)
         self.generated_email_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         generated_layout.addWidget(self.generated_email_label)
+        
+        # ⭐ 复制按钮
+        self.copy_email_btn = QPushButton("📋 复制邮箱")
+        self.copy_email_btn.setProperty("secondary", True)
+        self.copy_email_btn.clicked.connect(self._on_copy_email)
+        self.copy_email_btn.setVisible(False)  # 初始隐藏
+        generated_layout.addWidget(self.copy_email_btn)
         
         config_layout.addWidget(self.generated_email_group)
         self.generated_email_group.setVisible(False)  # 初始隐藏
@@ -401,7 +409,7 @@ class EmailTestPanel(QWidget):
             logger.error(f"恢复配置失败: {e}")
     
     def _on_generate_email(self):
-        """生成域名邮箱"""
+        """生成域名邮箱（纯字母）"""
         try:
             domain = self.domain_input.text().strip()
             
@@ -409,18 +417,31 @@ class EmailTestPanel(QWidget):
                 QMessageBox.warning(self, "提示", "请先配置域名！\n\n在域名输入框中填写域名，例如：\nporktrotter.xyz")
                 return
             
-            # 使用邮箱生成器
-            from core.email_generator import EmailGenerator
+            # ⭐ 生成纯字母邮箱（12位随机字母）
+            import random
+            import string
             
-            email_gen = EmailGenerator(domain)
-            generated_email = email_gen.generate_random_email(prefix="", length=12)
+            # 只使用小写字母
+            random_letters = ''.join(random.choices(string.ascii_lowercase, k=12))
+            
+            # 如果是域名池，随机选择一个
+            if "/" in domain:
+                domains = [d.strip() for d in domain.split("/") if d.strip()]
+                selected_domain = random.choice(domains)
+            else:
+                selected_domain = domain
+            
+            generated_email = f"{random_letters}@{selected_domain}"
+            
+            # 保存生成的邮箱（用于复制）
+            self.current_generated_email = generated_email
             
             # 显示生成的邮箱（使用富文本格式）
             self.generated_email_label.setTextFormat(Qt.TextFormat.RichText)
             self.generated_email_label.setText(
                 f"✅ 生成的邮箱：<br><br>"
                 f"<span style='font-size: 16px; font-weight: bold; color: #27ae60;'>{generated_email}</span><br><br>"
-                f"💡 可以复制此邮箱用于注册"
+                f"💡 点击下方按钮复制"
             )
             self.generated_email_label.setStyleSheet("""
                 color: #333;
@@ -431,13 +452,14 @@ class EmailTestPanel(QWidget):
                 border-radius: 5px;
             """)
             self.generated_email_group.setVisible(True)
+            self.copy_email_btn.setVisible(True)  # 显示复制按钮
             
             # Toast通知
             from gui.widgets.toast_notification import show_toast
             main_window = self.window()
             show_toast(main_window, f"✅ 已生成邮箱！\n{generated_email}", duration=3000)
             
-            logger.info(f"✅ 生成域名邮箱: {generated_email}")
+            logger.info(f"✅ 生成域名邮箱（纯字母）: {generated_email}")
             
         except Exception as e:
             logger.error(f"生成邮箱失败: {e}", exc_info=True)
@@ -446,6 +468,27 @@ class EmailTestPanel(QWidget):
                 "生成失败",
                 f"生成域名邮箱时出错：\n\n{e}"
             )
+    
+    def _on_copy_email(self):
+        """复制生成的邮箱到剪贴板"""
+        try:
+            if hasattr(self, 'current_generated_email') and self.current_generated_email:
+                from PyQt6.QtWidgets import QApplication
+                clipboard = QApplication.clipboard()
+                clipboard.setText(self.current_generated_email)
+                
+                # Toast通知
+                from gui.widgets.toast_notification import show_toast
+                main_window = self.window()
+                show_toast(main_window, f"✅ 已复制到剪贴板！\n{self.current_generated_email}", duration=2000)
+                
+                logger.info(f"✅ 已复制邮箱: {self.current_generated_email}")
+            else:
+                QMessageBox.warning(self, "提示", "请先生成邮箱！")
+                
+        except Exception as e:
+            logger.error(f"复制邮箱失败: {e}")
+            QMessageBox.critical(self, "复制失败", f"复制邮箱时出错：\n\n{e}")
     
     def _on_save(self):
         """保存配置"""
