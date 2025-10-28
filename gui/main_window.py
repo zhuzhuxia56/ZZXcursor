@@ -1618,7 +1618,7 @@ class MainWindow(QMainWindow):
         """生成指纹浏览器"""
         try:
             from core.browser_manager import BrowserManager
-            from core.machine_id_generator import generate_machine_id
+            from core.machine_id_generator import generate_machine_info
             import tempfile
             
             self.current_panel.log("=" * 60)
@@ -1627,7 +1627,7 @@ class MainWindow(QMainWindow):
             
             # 1. 生成设备指纹
             self.current_panel.log("\n步骤1: 生成设备指纹...")
-            machine_info = generate_machine_id()
+            machine_info = generate_machine_info()
             
             self.current_panel.log(f"✅ 设备指纹已生成:")
             self.current_panel.log(f"  machineId: {machine_info.get('telemetry.machineId', 'N/A')[:50]}...")
