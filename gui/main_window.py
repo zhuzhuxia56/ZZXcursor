@@ -1659,7 +1659,10 @@ class MainWindow(QMainWindow):
             self.current_panel.log("\n💡 提示:")
             self.current_panel.log("  • 浏览器已打开，可手动操作")
             self.current_panel.log("  • 每次生成都是新的随机指纹")
+            self.current_panel.log("  • 普通模式（非无痕），支持安装Chrome扩展")
+            self.current_panel.log("  • 可以访问 chrome://extensions/ 安装扩展")
             self.current_panel.log("  • 关闭后数据不保留")
+            self.current_panel.log(f"  • 用户数据目录: {temp_dir}")
             
             # Toast通知
             from gui.widgets.toast_notification import show_toast

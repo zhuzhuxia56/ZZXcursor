@@ -79,11 +79,26 @@ class BrowserManager:
             co.set_user_data_path(str(temp_dir))
             logger.info(f"✅ 使用默认用户数据目录: {temp_dir}")
         
+        # ⚡ 无头模式时不加载扩展（扩展在无头模式下可能有问题）
+        if not headless:
+            # 加载 turnstilePatch 扩展
+            try:
+                extension_path = self._get_extension_path("turnstilePatch")
+                co.add_extension(extension_path)
+                logger.info(f"✅ 加载扩展: {extension_path}")
+            except FileNotFoundError as e:
+                logger.warning(f"警告: {e}")
+
         # 浏览器配置
         co.set_pref("credentials_enable_service", False)
         co.set_argument("--hide-crash-restore-bubble")
         
-        # ⭐ 先确定无痕模式的值
+        # ⭐ 支持Chrome扩展（允许用户安装扩展）
+        # 不添加 --disable-extensions，让用户可以安装扩展
+        co.set_argument("--enable-extensions")  # 显式启用扩展
+        logger.info("✅ 已启用Chrome扩展支持，可以安装和使用扩展")
+        
+        # ⭐ 根据配置决定是否使用无痕模式
         logger.info("=" * 60)
         logger.info("📋 浏览器模式配置:")
         
@@ -94,45 +109,6 @@ class BrowserManager:
         else:
             logger.info(f"  ✅ 外部传入参数: incognito = {incognito}")
         
-        # ⭐ 根据最终的incognito值决定是否加载扩展
-        # 非无头模式 + 非无痕模式 = 加载扩展
-        should_load_extension = not headless and not incognito
-        
-        if should_load_extension:
-            # 加载 turnstilePatch 扩展
-            try:
-                extension_path = self._get_extension_path("turnstilePatch")
-                
-                # ⭐ 验证扩展目录和文件
-                import os
-                manifest_path = os.path.join(extension_path, "manifest.json")
-                script_path = os.path.join(extension_path, "script.js")
-                
-                logger.info(f"  📂 扩展目录: {extension_path}")
-                logger.info(f"  📄 manifest.json: {'✅ 存在' if os.path.exists(manifest_path) else '❌ 不存在'}")
-                logger.info(f"  📄 script.js: {'✅ 存在' if os.path.exists(script_path) else '❌ 不存在'}")
-                
-                # ⭐ 手动添加扩展参数（DrissionPage可能不会自动转换）
-                co.add_extension(extension_path)
-                
-                # ⭐ 同时手动添加--load-extension参数确保加载
-                co.set_argument(f"--load-extension={extension_path}")
-                
-                logger.info(f"  ✅ 扩展已添加: {extension_path}")
-                logger.info(f"  ✅ 已添加--load-extension启动参数")
-                logger.info(f"  💡 提示: 扩展在访问页面时自动运行")
-                
-            except FileNotFoundError as e:
-                logger.warning(f"  ⚠️ 扩展目录不存在: {e}")
-            except Exception as e:
-                logger.error(f"  ❌ 扩展加载失败: {e}")
-        else:
-            if headless:
-                logger.info("  ⏭️ 无头模式，不加载扩展")
-            elif incognito:
-                logger.info("  ⏭️ 无痕模式，不加载扩展（扩展在无痕模式下不工作）")
-        
-        # 设置无痕模式
         if incognito:
             co.set_argument("--incognito")
             logger.info("  🕶️  无痕模式已启用")
