@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
 import sys
+import uuid
 from pathlib import Path
 
 # 添加项目根目录到路径
@@ -89,21 +90,22 @@ class AugRegisterWorker(QThread):
         self.finished_signal.emit(self.success_count, self.fail_count)
     
     def _create_fingerprint_browser(self):
-        """生成指纹浏览器"""
+        """生成指纹浏览器并打开授权页面"""
         try:
             from core.browser_manager import BrowserManager
             from core.machine_id_generator import generate_machine_info
+            from core.aug_auth import AugmentAuth
             import tempfile
             
-            # 生成设备指纹
+            # 1. 生成设备指纹
             machine_info = generate_machine_info()
             self.log_signal.emit(f"  设备指纹: {machine_info.get('telemetry.machineId', 'N/A')[:30]}...")
             
-            # 创建用户数据目录
+            # 2. 创建用户数据目录
             temp_dir = tempfile.mkdtemp(prefix="aug_browser_")
             self.log_signal.emit(f"  数据目录: {temp_dir}")
             
-            # 初始化浏览器
+            # 3. 初始化浏览器
             browser_manager = BrowserManager()
             browser = browser_manager.init_browser(
                 incognito=False,
@@ -113,7 +115,23 @@ class AugRegisterWorker(QThread):
             
             self.log_signal.emit(f"  ✅ 浏览器已打开")
             
-            # TODO: 保存浏览器实例用于后续注册
+            # 4. 生成授权链接
+            self.log_signal.emit(f"\n步骤2: 生成授权链接...")
+            state = str(uuid.uuid4())
+            authorize_url = AugmentAuth.generate_authorize_url(state)
+            self.log_signal.emit(f"  授权链接: {authorize_url[:80]}...")
+            
+            # 5. 访问授权页面
+            self.log_signal.emit(f"\n步骤3: 打开授权页面...")
+            tab = browser.latest_tab
+            tab.get(authorize_url)
+            
+            self.log_signal.emit(f"  ✅ 授权页面已打开")
+            self.log_signal.emit(f"  💡 等待用户完成授权...")
+            
+            # TODO: 监听授权回调
+            # TODO: 获取accessToken
+            # TODO: 保存账号信息
             
             return True
             
