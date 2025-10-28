@@ -87,6 +87,67 @@ class AugRegisterWorker(QThread):
             random_letters = ''.join(random.choices(string.ascii_lowercase, k=12))
             return f"{random_letters}@ymwdes.cn"
     
+    def _handle_human_verification(self, tab, max_wait=30):
+        """处理人机验证（复用Turnstile处理逻辑）"""
+        try:
+            from core.turnstile_handler import handle_turnstile
+            import time
+            
+            self.log_signal.emit(f"  检测人机验证...")
+            
+            # 检查是否有Turnstile验证框
+            try:
+                turnstile_elem = tab.ele("#cf-turnstile", timeout=2)
+                if turnstile_elem:
+                    self.log_signal.emit(f"  ✅ 检测到Turnstile验证框")
+                    self.log_signal.emit(f"  开始自动处理...")
+                    
+                    # 使用Cursor注册的Turnstile处理逻辑
+                    success = handle_turnstile(tab, max_wait_seconds=max_wait)
+                    
+                    if success:
+                        self.log_signal.emit(f"  ✅ Turnstile验证已通过")
+                        return True
+                    else:
+                        self.log_signal.emit(f"  ⚠️ Turnstile验证超时")
+                        return False
+            except:
+                # 没有找到Turnstile元素
+                pass
+            
+            # 检查其他类型的验证框（如普通checkbox）
+            try:
+                self.log_signal.emit(f"  查找验证复选框...")
+                checkbox_selectors = [
+                    'input[type="checkbox"]',
+                    'input[role="checkbox"]',
+                    '[role="checkbox"]',
+                    '.checkbox'
+                ]
+                
+                for selector in checkbox_selectors:
+                    try:
+                        checkbox = tab.ele(selector, timeout=1)
+                        if checkbox:
+                            self.log_signal.emit(f"  ✅ 找到验证复选框，点击...")
+                            checkbox.click()
+                            time.sleep(2)
+                            self.log_signal.emit(f"  ✅ 已点击验证框")
+                            return True
+                    except:
+                        continue
+            except:
+                pass
+            
+            # 没有检测到验证框，可能不需要验证
+            self.log_signal.emit(f"  ℹ️ 未检测到人机验证，继续...")
+            return True
+            
+        except Exception as e:
+            logger.error(f"处理人机验证失败: {e}")
+            self.log_signal.emit(f"  ❌ 验证处理异常: {e}")
+            return False
+    
     def run(self):
         """执行批量注册"""
         self.log_signal.emit(f"开始批量注册 {self.count} 个Aug账号...\n")
@@ -216,22 +277,35 @@ class AugRegisterWorker(QThread):
             email_input.input(email)
             time.sleep(1)
             
+            # ⭐ 处理人机验证（类似Turnstile）
+            self.log_signal.emit(f"\n步骤5: 处理人机验证...")
+            verification_success = self._handle_human_verification(tab)
+            
+            if not verification_success:
+                self.log_signal.emit(f"  ⚠️ 人机验证未自动通过")
+                self.log_signal.emit(f"  💡 浏览器保持打开，请手动验证")
+                return True  # 保持浏览器打开
+            
+            self.log_signal.emit(f"  ✅ 人机验证已通过")
+            time.sleep(2)
+            
             # ⭐ 查找并点击继续/提交按钮
-            self.log_signal.emit(f"  查找提交按钮...")
+            self.log_signal.emit(f"\n步骤6: 点击Continue按钮...")
             submit_selectors = [
                 'button[type="submit"]',
                 'button:contains("Continue")',
                 'button:contains("Sign up")',
-                'button:contains("Next")'
+                'button:contains("Next")',
+                'button:contains("提交")'
             ]
             
             for selector in submit_selectors:
                 try:
-                    submit_btn = tab.ele(selector, timeout=1)
+                    submit_btn = tab.ele(selector, timeout=2)
                     if submit_btn:
-                        self.log_signal.emit(f"  ✅ 找到提交按钮，点击...")
+                        self.log_signal.emit(f"  ✅ 找到Continue按钮，点击...")
                         submit_btn.click()
-                        time.sleep(2)
+                        time.sleep(3)
                         break
                 except:
                     continue
