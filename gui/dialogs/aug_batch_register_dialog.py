@@ -683,23 +683,36 @@ class AugRegisterWorker(QThread):
             
             # ⭐ 查找并点击继续/提交按钮
             self.log_signal.emit(f"\n步骤6: 点击Continue按钮...")
-            submit_selectors = [
-                'button[type="submit"]',
-                'button:contains("Continue")',
-                'button:contains("Sign up")',
-                'button:contains("Next")',
-                'button:contains("提交")'
-            ]
             
-            for selector in submit_selectors:
+            # 先等待按钮变为可点击状态
+            time.sleep(2)
+            
+            submit_clicked = False
+            
+            # 方法1: 使用JavaScript点击
+            try:
+                self.log_signal.emit(f"  尝试使用JavaScript点击...")
+                js_code = "document.querySelector('button[type=\"submit\"]').click()"
+                tab.run_js(js_code)
+                self.log_signal.emit(f"  ✅ JavaScript点击成功")
+                submit_clicked = True
+            except Exception as e:
+                self.log_signal.emit(f"  JavaScript点击失败: {e}")
+            
+            # 方法2: 传统点击（备用）
+            if not submit_clicked:
                 try:
-                    submit_btn = tab.ele(selector, timeout=2)
+                    submit_btn = tab.ele('button[type="submit"]', timeout=2)
                     if submit_btn:
-                        self.log_signal.emit(f"  ✅ 找到Continue按钮，点击...")
+                        self.log_signal.emit(f"  尝试传统点击...")
                         submit_btn.click()
-                        break
-                except:
-                    continue
+                        self.log_signal.emit(f"  ✅ 传统点击成功")
+                        submit_clicked = True
+                except Exception as e:
+                    self.log_signal.emit(f"  传统点击失败: {e}")
+            
+            if not submit_clicked:
+                self.log_signal.emit(f"  ⚠️ Continue按钮点击失败，请手动点击")
             
             # ⭐ 固定等待5秒
             self.log_signal.emit(f"  固定等待5秒...")
