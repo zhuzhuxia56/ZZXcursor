@@ -203,17 +203,62 @@ class EmailTestPanel(QWidget):
         self.generated_email_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         generated_layout.addWidget(self.generated_email_label)
         
-        # ⭐ 复制按钮
+        # ⭐ 按钮行（复制和查看收件箱）
+        email_btn_row = QHBoxLayout()
+        
         self.copy_email_btn = QPushButton("📋 复制邮箱")
         self.copy_email_btn.setProperty("secondary", True)
         self.copy_email_btn.clicked.connect(self._on_copy_email)
         self.copy_email_btn.setVisible(False)  # 初始隐藏
-        generated_layout.addWidget(self.copy_email_btn)
+        email_btn_row.addWidget(self.copy_email_btn)
+        
+        self.view_inbox_btn = QPushButton("📬 查看收件箱")
+        self.view_inbox_btn.setProperty("secondary", True)
+        self.view_inbox_btn.clicked.connect(self._on_view_inbox)
+        self.view_inbox_btn.setVisible(False)  # 初始隐藏
+        email_btn_row.addWidget(self.view_inbox_btn)
+        
+        generated_layout.addLayout(email_btn_row)
         
         config_layout.addWidget(self.generated_email_group)
         self.generated_email_group.setVisible(False)  # 初始隐藏
         
         main_layout.addWidget(config_group)
+        
+        # ⭐ 收件箱显示区域（在图中圈出的大空白区域）
+        self.inbox_group = QGroupBox("📬 收件箱")
+        inbox_layout = QVBoxLayout(self.inbox_group)
+        
+        # 收件箱说明
+        self.inbox_info_label = QLabel("显示发送到生成邮箱的邮件")
+        self.inbox_info_label.setStyleSheet("color: #888; font-size: 11px; padding: 5px;")
+        inbox_layout.addWidget(self.inbox_info_label)
+        
+        # 邮件列表显示（使用TextEdit显示）
+        from PyQt6.QtWidgets import QTextEdit
+        self.inbox_text = QTextEdit()
+        self.inbox_text.setReadOnly(True)
+        self.inbox_text.setMinimumHeight(200)
+        self.inbox_text.setStyleSheet("""
+            QTextEdit {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                padding: 10px;
+                font-family: Consolas, monospace;
+                font-size: 12px;
+            }
+        """)
+        inbox_layout.addWidget(self.inbox_text)
+        
+        # 刷新收件箱按钮
+        self.refresh_inbox_btn = QPushButton("🔄 刷新收件箱")
+        self.refresh_inbox_btn.setProperty("secondary", True)
+        self.refresh_inbox_btn.clicked.connect(self._on_refresh_inbox)
+        inbox_layout.addWidget(self.refresh_inbox_btn)
+        
+        main_layout.addWidget(self.inbox_group)
+        self.inbox_group.setVisible(False)  # 初始隐藏
         
         # 创建水平布局：左边是配置说明，右边是动图
         bottom_layout = QHBoxLayout()
@@ -453,6 +498,7 @@ class EmailTestPanel(QWidget):
             """)
             self.generated_email_group.setVisible(True)
             self.copy_email_btn.setVisible(True)  # 显示复制按钮
+            self.view_inbox_btn.setVisible(True)  # 显示查看收件箱按钮
             
             # Toast通知
             from gui.widgets.toast_notification import show_toast
@@ -468,6 +514,122 @@ class EmailTestPanel(QWidget):
                 "生成失败",
                 f"生成域名邮箱时出错：\n\n{e}"
             )
+    
+    def _on_view_inbox(self):
+        """查看收件箱"""
+        try:
+            if not hasattr(self, 'current_generated_email') or not self.current_generated_email:
+                QMessageBox.warning(self, "提示", "请先生成邮箱！")
+                return
+            
+            receiving_email = self.receiving_email_input.text().strip()
+            pin = self.pin_input.text().strip()
+            
+            if not receiving_email or not pin:
+                QMessageBox.warning(
+                    self, 
+                    "提示", 
+                    "请先配置接收邮箱和PIN码！\n\n这些信息用于从tempmail.plus获取邮件。"
+                )
+                return
+            
+            # 显示收件箱区域
+            self.inbox_group.setVisible(True)
+            self.inbox_text.clear()
+            self.inbox_text.append("🔍 正在获取邮件...\n")
+            
+            # 获取邮件
+            self._fetch_inbox_emails()
+            
+        except Exception as e:
+            logger.error(f"查看收件箱失败: {e}", exc_info=True)
+            QMessageBox.critical(self, "错误", f"查看收件箱时出错：\n\n{e}")
+    
+    def _on_refresh_inbox(self):
+        """刷新收件箱"""
+        try:
+            if not hasattr(self, 'current_generated_email') or not self.current_generated_email:
+                QMessageBox.warning(self, "提示", "请先生成邮箱！")
+                return
+            
+            self.inbox_text.clear()
+            self.inbox_text.append("🔄 刷新中...\n")
+            
+            # 重新获取邮件
+            self._fetch_inbox_emails()
+            
+        except Exception as e:
+            logger.error(f"刷新收件箱失败: {e}")
+            QMessageBox.critical(self, "错误", f"刷新收件箱时出错：\n\n{e}")
+    
+    def _fetch_inbox_emails(self):
+        """获取收件箱邮件"""
+        try:
+            receiving_email = self.receiving_email_input.text().strip()
+            pin = self.pin_input.text().strip()
+            
+            # 使用邮箱验证处理器
+            from core.email_verification import EmailVerificationHandler
+            
+            handler = EmailVerificationHandler(
+                account=self.current_generated_email,
+                receiving_email=receiving_email,
+                receiving_pin=pin
+            )
+            
+            # 获取邮件列表
+            logger.info(f"获取邮件: {self.current_generated_email}")
+            emails = handler.get_emails()
+            
+            self.inbox_text.clear()
+            
+            if not emails:
+                self.inbox_text.append("📭 收件箱为空\n")
+                self.inbox_text.append(f"目标邮箱: {self.current_generated_email}\n")
+                self.inbox_text.append("\n💡 提示：邮件可能需要几秒钟才能到达")
+                return
+            
+            # 显示邮件
+            self.inbox_info_label.setText(f"收到 {len(emails)} 封邮件（发送到：{self.current_generated_email}）")
+            
+            self.inbox_text.append(f"📬 收件箱：{self.current_generated_email}\n")
+            self.inbox_text.append(f"共 {len(emails)} 封邮件\n")
+            self.inbox_text.append("=" * 60 + "\n")
+            
+            for i, email in enumerate(emails, 1):
+                self.inbox_text.append(f"\n【邮件 {i}】")
+                self.inbox_text.append(f"发件人: {email.get('from', 'N/A')}")
+                self.inbox_text.append(f"主题: {email.get('subject', 'N/A')}")
+                self.inbox_text.append(f"时间: {email.get('date', 'N/A')}")
+                
+                # 邮件内容
+                body = email.get('body', '')
+                if body:
+                    # 查找验证码
+                    import re
+                    code_match = re.search(r'\b\d{6}\b', body)
+                    if code_match:
+                        code = code_match.group()
+                        self.inbox_text.append(f"✅ 验证码: {code}")
+                    
+                    self.inbox_text.append(f"\n内容预览:")
+                    # 只显示前200个字符
+                    preview = body[:200] + ('...' if len(body) > 200 else '')
+                    self.inbox_text.append(preview)
+                
+                self.inbox_text.append("\n" + "-" * 60)
+            
+            logger.info(f"✅ 获取到 {len(emails)} 封邮件")
+            
+        except Exception as e:
+            logger.error(f"获取邮件失败: {e}", exc_info=True)
+            self.inbox_text.clear()
+            self.inbox_text.append(f"❌ 获取邮件失败\n\n")
+            self.inbox_text.append(f"错误: {str(e)}\n\n")
+            self.inbox_text.append("💡 请检查：\n")
+            self.inbox_text.append("  1. 接收邮箱和PIN码是否正确\n")
+            self.inbox_text.append("  2. 网络连接是否正常\n")
+            self.inbox_text.append("  3. tempmail.plus 是否可访问")
     
     def _on_copy_email(self):
         """复制生成的邮箱到剪贴板"""
