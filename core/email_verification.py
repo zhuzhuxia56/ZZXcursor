@@ -110,19 +110,21 @@ class EmailVerificationHandler:
             logger.error(f"❌ 连接测试失败: {e}")
             return False, f"连接失败: {str(e)}"
 
-    def get_emails(self, limit=20):
+    def get_emails(self, limit=20, minutes=5):
         """
-        获取邮件列表（只获取发送到指定账号的邮件）
+        获取邮件列表（只显示最近N分钟内的邮件）
         
         Args:
             limit: 最多获取的邮件数量
+            minutes: 只显示多少分钟内的邮件（默认5分钟）
             
         Returns:
-            list: 邮件列表，每个邮件包含 from, subject, date, body 等字段
+            list: 邮件列表，每个邮件包含 from, subject, date, body, mail_id 等字段
         """
         try:
             logger.info(f"获取邮件列表: {self.account}")
             logger.info(f"接收邮箱: {self.receiving_email}")
+            logger.info(f"时间范围: 最近 {minutes} 分钟")
             
             # 获取邮件列表
             url = f"https://tempmail.plus/api/mails?email={self.receiving_email}&limit={limit}&epin={self.epin}"
@@ -133,7 +135,6 @@ class EmailVerificationHandler:
                 return []
             
             data = response.json()
-            logger.info(f"API响应: {data}")
             
             if not data.get("result"):
                 logger.warning("API返回失败")
@@ -146,8 +147,14 @@ class EmailVerificationHandler:
                 logger.info("收件箱为空")
                 return []
             
-            # ⭐ 直接获取所有邮件详情（不筛选，因为tempmail已经是转发到接收邮箱的）
-            all_emails = []
+            # 计算时间阈值（当前时间 - minutes分钟）
+            import time
+            current_timestamp = int(time.time())
+            time_threshold = current_timestamp - (minutes * 60)
+            logger.info(f"时间阈值: {time_threshold} (当前时间: {current_timestamp})")
+            
+            # 获取所有邮件详情，并按时间筛选
+            recent_emails = []
             
             for i, mail in enumerate(mail_list, 1):
                 try:
@@ -170,15 +177,38 @@ class EmailVerificationHandler:
                     if detail_response.status_code == 200:
                         detail_data = detail_response.json()
                         if detail_data.get("result"):
-                            email_info = {
-                                'from': detail_data.get('from', 'N/A'),
-                                'subject': detail_data.get('subject', 'N/A'),
-                                'date': detail_data.get('date', 'N/A'),
-                                'body': detail_data.get('text', ''),
-                                'to': detail_data.get('to', self.account)  # 使用生成的邮箱
-                            }
-                            all_emails.append(email_info)
-                            logger.info(f"    ✅ 已添加邮件: {email_info['subject']}")
+                            # ⭐ 检查邮件时间
+                            mail_date = detail_data.get('date', 0)
+                            try:
+                                # 处理不同格式的时间戳
+                                if isinstance(mail_date, str):
+                                    mail_timestamp = int(mail_date) if mail_date.isdigit() else 0
+                                else:
+                                    mail_timestamp = int(mail_date)
+                                
+                                # 只保留最近N分钟的邮件
+                                if mail_timestamp >= time_threshold:
+                                    email_info = {
+                                        'from': detail_data.get('from', 'N/A'),
+                                        'subject': detail_data.get('subject', 'N/A'),
+                                        'date': detail_data.get('date', 'N/A'),
+                                        'body': detail_data.get('text', ''),
+                                        'to': detail_data.get('to', self.account),
+                                        'mail_id': mail_id  # ⭐ 保存ID用于删除
+                                    }
+                                    recent_emails.append(email_info)
+                                    
+                                    # 计算邮件距离现在的时间
+                                    age_seconds = current_timestamp - mail_timestamp
+                                    age_minutes = age_seconds // 60
+                                    logger.info(f"    ✅ 已添加邮件（{age_minutes}分钟前）: {email_info['subject']}")
+                                else:
+                                    age_seconds = current_timestamp - mail_timestamp
+                                    age_minutes = age_seconds // 60
+                                    logger.info(f"    ⏭️ 邮件太旧（{age_minutes}分钟前），跳过")
+                                    
+                            except Exception as e:
+                                logger.warning(f"    ⚠️ 时间解析失败，跳过: {e}")
                         else:
                             logger.warning(f"    ⚠️ 邮件详情获取失败: result=False")
                     else:
@@ -188,8 +218,8 @@ class EmailVerificationHandler:
                     logger.error(f"  处理邮件 {i} 失败: {e}")
                     continue
             
-            logger.info(f"✅ 成功获取 {len(all_emails)} 封邮件")
-            return all_emails
+            logger.info(f"✅ 成功获取 {len(recent_emails)} 封最近{minutes}分钟的邮件")
+            return recent_emails
             
         except Exception as e:
             logger.error(f"获取邮件列表失败: {e}", exc_info=True)

@@ -37,6 +37,7 @@ class EmailTestPanel(QWidget):
         self.config = self._load_config()
         self.has_unsaved_changes = False  # 未保存标记
         self.current_generated_email = None  # 当前生成的邮箱
+        self.current_emails = []  # 当前显示的邮件列表
         
         self._setup_ui()
         self._connect_change_signals()  # 连接变更信号
@@ -251,11 +252,20 @@ class EmailTestPanel(QWidget):
         """)
         inbox_layout.addWidget(self.inbox_text)
         
-        # 刷新收件箱按钮
+        # 收件箱操作按钮
+        inbox_btn_row = QHBoxLayout()
+        
         self.refresh_inbox_btn = QPushButton("🔄 刷新收件箱")
         self.refresh_inbox_btn.setProperty("secondary", True)
         self.refresh_inbox_btn.clicked.connect(self._on_refresh_inbox)
-        inbox_layout.addWidget(self.refresh_inbox_btn)
+        inbox_btn_row.addWidget(self.refresh_inbox_btn)
+        
+        self.clear_inbox_btn = QPushButton("🗑️ 清理邮件")
+        self.clear_inbox_btn.setProperty("danger", True)
+        self.clear_inbox_btn.clicked.connect(self._on_clear_inbox)
+        inbox_btn_row.addWidget(self.clear_inbox_btn)
+        
+        inbox_layout.addLayout(inbox_btn_row)
         
         main_layout.addWidget(self.inbox_group)
         self.inbox_group.setVisible(False)  # 初始隐藏
@@ -563,7 +573,7 @@ class EmailTestPanel(QWidget):
             QMessageBox.critical(self, "错误", f"刷新收件箱时出错：\n\n{e}")
     
     def _fetch_inbox_emails(self):
-        """获取收件箱邮件"""
+        """获取收件箱邮件（只显示5分钟内的）"""
         try:
             receiving_email = self.receiving_email_input.text().strip()
             pin = self.pin_input.text().strip()
@@ -577,30 +587,48 @@ class EmailTestPanel(QWidget):
                 receiving_pin=pin
             )
             
-            # 获取邮件列表
+            # ⭐ 获取最近5分钟的邮件列表
             logger.info(f"获取邮件: {self.current_generated_email}")
-            emails = handler.get_emails()
+            emails = handler.get_emails(limit=20, minutes=5)
+            
+            # ⭐ 保存邮件列表（用于清理）
+            self.current_emails = emails
             
             self.inbox_text.clear()
             
             if not emails:
-                self.inbox_text.append("📭 收件箱为空\n")
+                self.inbox_text.append("📭 最近5分钟内无新邮件\n")
                 self.inbox_text.append(f"目标邮箱: {self.current_generated_email}\n")
-                self.inbox_text.append("\n💡 提示：邮件可能需要几秒钟才能到达")
+                self.inbox_text.append("\n💡 提示：\n")
+                self.inbox_text.append("  • 只显示最近5分钟内的邮件\n")
+                self.inbox_text.append("  • 邮件可能需要几秒钟才能到达\n")
+                self.inbox_text.append("  • 点击'刷新收件箱'获取最新邮件")
                 return
             
             # 显示邮件
-            self.inbox_info_label.setText(f"收到 {len(emails)} 封邮件（发送到：{self.current_generated_email}）")
+            self.inbox_info_label.setText(f"最近5分钟收到 {len(emails)} 封邮件")
             
             self.inbox_text.append(f"📬 收件箱：{self.current_generated_email}\n")
-            self.inbox_text.append(f"共 {len(emails)} 封邮件\n")
+            self.inbox_text.append(f"共 {len(emails)} 封邮件（最近5分钟）\n")
             self.inbox_text.append("=" * 60 + "\n")
             
             for i, email in enumerate(emails, 1):
                 self.inbox_text.append(f"\n【邮件 {i}】")
                 self.inbox_text.append(f"发件人: {email.get('from', 'N/A')}")
                 self.inbox_text.append(f"主题: {email.get('subject', 'N/A')}")
-                self.inbox_text.append(f"时间: {email.get('date', 'N/A')}")
+                
+                # 格式化时间显示
+                mail_date = email.get('date', 'N/A')
+                if mail_date != 'N/A':
+                    try:
+                        import time as time_module
+                        timestamp = int(mail_date)
+                        time_str = time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(timestamp))
+                        self.inbox_text.append(f"时间: {time_str}")
+                    except:
+                        self.inbox_text.append(f"时间: {mail_date}")
+                else:
+                    self.inbox_text.append(f"时间: {mail_date}")
                 
                 # 邮件内容
                 body = email.get('body', '')
@@ -619,7 +647,7 @@ class EmailTestPanel(QWidget):
                 
                 self.inbox_text.append("\n" + "-" * 60)
             
-            logger.info(f"✅ 获取到 {len(emails)} 封邮件")
+            logger.info(f"✅ 显示 {len(emails)} 封邮件")
             
         except Exception as e:
             logger.error(f"获取邮件失败: {e}", exc_info=True)
@@ -630,6 +658,67 @@ class EmailTestPanel(QWidget):
             self.inbox_text.append("  1. 接收邮箱和PIN码是否正确\n")
             self.inbox_text.append("  2. 网络连接是否正常\n")
             self.inbox_text.append("  3. tempmail.plus 是否可访问")
+    
+    def _on_clear_inbox(self):
+        """清理邮件"""
+        try:
+            if not hasattr(self, 'current_emails') or not self.current_emails:
+                QMessageBox.warning(self, "提示", "没有可清理的邮件！\n\n请先查看收件箱。")
+                return
+            
+            # 确认清理
+            reply = QMessageBox.question(
+                self,
+                "确认清理",
+                f"确定要清理当前显示的 {len(self.current_emails)} 封邮件吗？\n\n"
+                f"清理后邮件将被删除，无法恢复。",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            
+            receiving_email = self.receiving_email_input.text().strip()
+            pin = self.pin_input.text().strip()
+            
+            # 使用邮箱验证处理器
+            from core.email_verification import EmailVerificationHandler
+            
+            handler = EmailVerificationHandler(
+                account=self.current_generated_email,
+                receiving_email=receiving_email,
+                receiving_pin=pin
+            )
+            
+            # 删除每封邮件
+            success_count = 0
+            fail_count = 0
+            
+            for email in self.current_emails:
+                mail_id = email.get('mail_id')
+                if mail_id:
+                    if handler._cleanup_mail(mail_id):
+                        success_count += 1
+                    else:
+                        fail_count += 1
+            
+            # 显示结果
+            if success_count > 0:
+                QMessageBox.information(
+                    self,
+                    "清理完成",
+                    f"✅ 成功清理 {success_count} 封邮件\n"
+                    f"❌ 失败 {fail_count} 封"
+                )
+                
+                # 刷新收件箱
+                self._fetch_inbox_emails()
+            else:
+                QMessageBox.warning(self, "清理失败", "所有邮件清理失败！")
+                
+        except Exception as e:
+            logger.error(f"清理邮件失败: {e}")
+            QMessageBox.critical(self, "清理失败", f"清理邮件时出错：\n\n{e}")
     
     def _on_copy_email(self):
         """复制生成的邮箱到剪贴板"""
