@@ -112,11 +112,15 @@ class BrowserManager:
                 logger.info(f"  📄 manifest.json: {'✅ 存在' if os.path.exists(manifest_path) else '❌ 不存在'}")
                 logger.info(f"  📄 script.js: {'✅ 存在' if os.path.exists(script_path) else '❌ 不存在'}")
                 
-                # 加载扩展
+                # ⭐ 手动添加扩展参数（DrissionPage可能不会自动转换）
                 co.add_extension(extension_path)
-                logger.info(f"  ✅ 扩展已添加到浏览器配置")
-                logger.info(f"  💡 提示: Manifest V3扩展不会显示在chrome://extensions")
-                logger.info(f"  💡 扩展会在访问页面时自动运行")
+                
+                # ⭐ 同时手动添加--load-extension参数确保加载
+                co.set_argument(f"--load-extension={extension_path}")
+                
+                logger.info(f"  ✅ 扩展已添加: {extension_path}")
+                logger.info(f"  ✅ 已添加--load-extension启动参数")
+                logger.info(f"  💡 提示: 扩展在访问页面时自动运行")
                 
             except FileNotFoundError as e:
                 logger.warning(f"  ⚠️ 扩展目录不存在: {e}")
