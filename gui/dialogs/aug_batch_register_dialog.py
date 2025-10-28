@@ -113,26 +113,51 @@ class AugRegisterWorker(QThread):
             try:
                 self.log_signal.emit(f"  查找'Verify you are human'验证框...")
                 
-                # Aug验证框的可能选择器
-                verify_selectors = [
-                    'text:Verify you are human',  # 包含文本
-                    '[role="checkbox"]',
-                    'input[type="checkbox"]'
-                ]
+                # ⭐ 根据HTML结构查找
+                # <label class="cb-lb">
+                #   <input type="checkbox">
+                #   <span>Verify you are human</span>
+                # </label>
                 
                 found_verify = False
-                for selector in verify_selectors:
+                
+                # 方法1: 查找label（包含checkbox）
+                try:
+                    label_elem = tab.ele('tag:label.cb-lb', timeout=2)
+                    if label_elem:
+                        self.log_signal.emit(f"  ✅ 找到验证label，点击...")
+                        label_elem.click()
+                        time.sleep(3)
+                        self.log_signal.emit(f"  ✅ 已点击验证框")
+                        found_verify = True
+                except Exception as e:
+                    self.log_signal.emit(f"  方法1失败: {e}")
+                
+                # 方法2: 直接查找checkbox
+                if not found_verify:
                     try:
-                        verify_elem = tab.ele(selector, timeout=1)
-                        if verify_elem:
-                            self.log_signal.emit(f"  ✅ 找到验证元素（{selector}），点击...")
-                            verify_elem.click()
-                            time.sleep(3)  # 等待验证处理
-                            self.log_signal.emit(f"  ✅ 已点击验证框")
+                        # 查找包含"Verify you are human"文本的label内的checkbox
+                        checkbox = tab.ele('input[type="checkbox"]', timeout=2)
+                        if checkbox:
+                            self.log_signal.emit(f"  ✅ 找到checkbox，点击...")
+                            checkbox.click()
+                            time.sleep(3)
+                            self.log_signal.emit(f"  ✅ 已点击checkbox")
                             found_verify = True
-                            break
-                    except:
-                        continue
+                    except Exception as e:
+                        self.log_signal.emit(f"  方法2失败: {e}")
+                
+                # 方法3: 使用JavaScript点击
+                if not found_verify:
+                    try:
+                        self.log_signal.emit(f"  尝试JavaScript点击...")
+                        js_code = "document.querySelector('input[type=\"checkbox\"]').click()"
+                        tab.run_js(js_code)
+                        time.sleep(3)
+                        self.log_signal.emit(f"  ✅ JavaScript点击成功")
+                        found_verify = True
+                    except Exception as e:
+                        self.log_signal.emit(f"  JavaScript失败: {e}")
                 
                 if found_verify:
                     return True
