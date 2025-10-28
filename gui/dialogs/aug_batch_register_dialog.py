@@ -464,34 +464,15 @@ class AugRegisterWorker(QThread):
             # 国家/地址等其他字段...
             # TODO: 根据实际页面补充
             
-            # 点击提交
-            self.log_signal.emit(f"  查找提交按钮...")
-            submit_selectors = [
-                'button:contains("保存")',
-                'button:contains("Submit")',
-                'button[type="submit"]',
-                'button:contains("确认")'
-            ]
+            # ⭐ 不自动点击提交，让用户手动提交
+            self.log_signal.emit(f"\n  ✅ 支付信息已自动填写完成")
+            self.log_signal.emit(f"  💡 请手动检查并点击提交按钮")
+            self.log_signal.emit(f"  💡 浏览器将保持打开")
             
-            for selector in submit_selectors:
-                try:
-                    submit_btn = tab.ele(selector, timeout=2)
-                    if submit_btn:
-                        self.log_signal.emit(f"  ✅ 找到提交按钮，点击...")
-                        submit_btn.click()
-                        time.sleep(3)
-                        
-                        # 删除已使用的卡号
-                        card_manager = get_card_pool_manager()
-                        card_manager.remove_card_by_number(card_number)
-                        self.log_signal.emit(f"  ✅ 已删除使用的卡号")
-                        
-                        return True
-                except:
-                    continue
+            # 保存卡号以备后续删除
+            # TODO: 用户手动提交成功后可以调用删除
             
-            self.log_signal.emit(f"  ⚠️ 未找到提交按钮")
-            return False
+            return True
             
         except Exception as e:
             logger.error(f"填写支付信息失败: {e}")
