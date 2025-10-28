@@ -169,6 +169,12 @@ class EmailTestPanel(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
         
+        # ⭐ 生成域名邮箱按钮
+        self.generate_email_btn = QPushButton("📧 生成域名邮箱")
+        self.generate_email_btn.setProperty("secondary", True)
+        self.generate_email_btn.clicked.connect(self._on_generate_email)
+        btn_row.addWidget(self.generate_email_btn)
+        
         self.save_btn = QPushButton("💾 保存配置")
         self.save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(self.save_btn)
@@ -179,6 +185,25 @@ class EmailTestPanel(QWidget):
         btn_row.addWidget(self.help_btn)
         
         config_layout.addLayout(btn_row)
+        
+        # ⭐ 生成的邮箱显示区域
+        self.generated_email_group = QGroupBox("生成的域名邮箱")
+        generated_layout = QVBoxLayout(self.generated_email_group)
+        
+        self.generated_email_label = QLabel("点击上方'生成域名邮箱'按钮生成")
+        self.generated_email_label.setStyleSheet("""
+            color: #888;
+            font-size: 12px;
+            padding: 10px;
+            background-color: rgba(128, 128, 128, 0.1);
+            border-radius: 5px;
+        """)
+        self.generated_email_label.setWordWrap(True)
+        self.generated_email_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        generated_layout.addWidget(self.generated_email_label)
+        
+        config_layout.addWidget(self.generated_email_group)
+        self.generated_email_group.setVisible(False)  # 初始隐藏
         
         main_layout.addWidget(config_group)
         
@@ -374,6 +399,52 @@ class EmailTestPanel(QWidget):
             logger.info("✅ 配置已恢复到修改前的状态")
         except Exception as e:
             logger.error(f"恢复配置失败: {e}")
+    
+    def _on_generate_email(self):
+        """生成域名邮箱"""
+        try:
+            domain = self.domain_input.text().strip()
+            
+            if not domain:
+                QMessageBox.warning(self, "提示", "请先配置域名！\n\n在域名输入框中填写域名，例如：\nporktrotter.xyz")
+                return
+            
+            # 使用邮箱生成器
+            from core.email_generator import EmailGenerator
+            
+            email_gen = EmailGenerator(domain)
+            generated_email = email_gen.generate_random_email(prefix="", length=12)
+            
+            # 显示生成的邮箱
+            self.generated_email_label.setText(
+                f"✅ 生成的邮箱：\n\n"
+                f"<b style='font-size: 14px; color: #27ae60;'>{generated_email}</b>\n\n"
+                f"💡 可以复制此邮箱用于注册"
+            )
+            self.generated_email_label.setStyleSheet("""
+                color: #333;
+                font-size: 12px;
+                padding: 15px;
+                background-color: rgba(39, 174, 96, 0.1);
+                border: 2px solid #27ae60;
+                border-radius: 5px;
+            """)
+            self.generated_email_group.setVisible(True)
+            
+            # Toast通知
+            from gui.widgets.toast_notification import show_toast
+            main_window = self.window()
+            show_toast(main_window, f"✅ 已生成邮箱！\n{generated_email}", duration=3000)
+            
+            logger.info(f"✅ 生成域名邮箱: {generated_email}")
+            
+        except Exception as e:
+            logger.error(f"生成邮箱失败: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "生成失败",
+                f"生成域名邮箱时出错：\n\n{e}"
+            )
     
     def _on_save(self):
         """保存配置"""
