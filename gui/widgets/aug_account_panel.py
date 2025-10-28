@@ -401,13 +401,21 @@ class AugAccountPanel(QWidget):
     
     def _on_batch_register(self):
         """批量注册Aug账号"""
-        QMessageBox.information(
-            self,
-            "功能开发中",
-            "Aug账号批量注册功能正在开发中...\n\n"
-            "即将支持：\n"
-            "• 批量自动注册Aug账号\n"
-            "• 使用导入的邮箱域名\n"
-            "• 自动验证和保存"
-        )
+        try:
+            from gui.dialogs.aug_batch_register_dialog import AugBatchRegisterDialog
+            
+            # 打开批量注册对话框
+            dialog = AugBatchRegisterDialog(self)
+            dialog.registration_completed.connect(self._on_registration_completed)
+            dialog.exec()
+            
+        except Exception as e:
+            logger.error(f"打开批量注册对话框失败: {e}")
+            QMessageBox.critical(self, "错误", f"打开批量注册对话框失败：\n\n{e}")
+    
+    def _on_registration_completed(self, count):
+        """注册完成后刷新列表"""
+        logger.info(f"批量注册完成，成功 {count} 个账号")
+        # TODO: 刷新账号列表
+        self._refresh_account_list()
 
