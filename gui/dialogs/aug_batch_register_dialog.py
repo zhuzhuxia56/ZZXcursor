@@ -597,16 +597,24 @@ class AugRegisterWorker(QThread):
             self.log_signal.emit(f"  code_challenge: 已生成")
             self.log_signal.emit(f"  state: {state}")
             
-            # 5. 访问授权页面
+            # 5. 访问授权页面（不等待完全加载）
             self.log_signal.emit(f"\n步骤3: 访问授权页面...")
             tab = browser.latest_tab
-            tab.get(authorize_url)
+            
+            # ⭐ 使用timeout避免长时间等待
+            try:
+                tab.get(authorize_url, timeout=10)
+            except:
+                # 超时也继续，页面可能已部分加载
+                pass
             
             import time
-            time.sleep(2)  # 等待页面加载
-            
             self.log_signal.emit(f"  ✅ 授权页面已打开")
             self.log_signal.emit(f"  当前URL: {tab.url}")
+            
+            # ⭐ 固定等待5秒
+            self.log_signal.emit(f"  固定等待5秒...")
+            time.sleep(5)
             
             # 6. 自动完成授权流程
             self.log_signal.emit(f"\n步骤4: 自动填写授权信息...")
@@ -674,23 +682,19 @@ class AugRegisterWorker(QThread):
                     if submit_btn:
                         self.log_signal.emit(f"  ✅ 找到Continue按钮，点击...")
                         submit_btn.click()
-                        time.sleep(3)
                         break
                 except:
                     continue
+            
+            # ⭐ 固定等待5秒
+            self.log_signal.emit(f"  固定等待5秒...")
+            time.sleep(5)
             
             self.log_signal.emit(f"  ✅ 授权流程已启动")
             
             # 7. 等待并获取邮箱验证码
             self.log_signal.emit(f"\n步骤7: 获取邮箱验证码...")
-            
-            # ⭐ 最多等5秒，每秒检查URL
-            for wait_i in range(5):
-                time.sleep(1)
-                current_url = tab.url
-                if 'passwordless-email-challenge' in current_url or 'code' in current_url.lower():
-                    break
-            
+            current_url = tab.url
             self.log_signal.emit(f"  当前URL: {current_url}")
             
             # 检查是否已经到验证码页面
