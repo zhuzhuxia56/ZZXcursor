@@ -415,15 +415,16 @@ class EmailTestPanel(QWidget):
             email_gen = EmailGenerator(domain)
             generated_email = email_gen.generate_random_email(prefix="", length=12)
             
-            # 显示生成的邮箱
+            # 显示生成的邮箱（使用富文本格式）
+            self.generated_email_label.setTextFormat(Qt.TextFormat.RichText)
             self.generated_email_label.setText(
-                f"✅ 生成的邮箱：\n\n"
-                f"<b style='font-size: 14px; color: #27ae60;'>{generated_email}</b>\n\n"
+                f"✅ 生成的邮箱：<br><br>"
+                f"<span style='font-size: 16px; font-weight: bold; color: #27ae60;'>{generated_email}</span><br><br>"
                 f"💡 可以复制此邮箱用于注册"
             )
             self.generated_email_label.setStyleSheet("""
                 color: #333;
-                font-size: 12px;
+                font-size: 13px;
                 padding: 15px;
                 background-color: rgba(39, 174, 96, 0.1);
                 border: 2px solid #27ae60;
