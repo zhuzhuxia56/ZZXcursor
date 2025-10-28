@@ -278,21 +278,16 @@ class AugAccountPanel(QWidget):
         
         title_row.addStretch()
         
-        # 操作按钮
-        add_btn = QPushButton("➕ 添加账号")
-        add_btn.setProperty("primary", True)
-        add_btn.clicked.connect(self._on_add_account)
-        title_row.addWidget(add_btn)
+        # ⭐ 刷新和批量注册按钮
+        refresh_btn = QPushButton("🔄 刷新")
+        refresh_btn.setProperty("secondary", True)
+        refresh_btn.clicked.connect(self._on_refresh_list)
+        title_row.addWidget(refresh_btn)
         
-        import_btn = QPushButton("📥 导入")
-        import_btn.setProperty("secondary", True)
-        import_btn.clicked.connect(self._on_import)
-        title_row.addWidget(import_btn)
-        
-        export_btn = QPushButton("📤 导出")
-        export_btn.setProperty("secondary", True)
-        export_btn.clicked.connect(self._on_export)
-        title_row.addWidget(export_btn)
+        batch_register_btn = QPushButton("📝 批量注册")
+        batch_register_btn.setProperty("primary", True)
+        batch_register_btn.clicked.connect(self._on_batch_register)
+        title_row.addWidget(batch_register_btn)
         
         main_layout.addLayout(title_row)
         
@@ -392,31 +387,27 @@ class AugAccountPanel(QWidget):
         
         logger.info(f"✅ 刷新Aug账号列表: {len(self.accounts)} 个账号")
     
-    def _on_add_account(self):
-        """添加账号"""
+    def _on_refresh_list(self):
+        """刷新账号列表"""
         QMessageBox.information(
             self,
             "功能开发中",
-            "Aug账号添加功能正在开发中...\n\n"
+            "Aug账号刷新功能正在开发中...\n\n"
             "即将支持：\n"
-            "• 手动添加Aug账号\n"
-            "• 导入Aug账号列表\n"
-            "• 账号验证和刷新"
+            "• 刷新所有账号状态\n"
+            "• 验证账号有效性\n"
+            "• 更新账号信息"
         )
     
-    def _on_import(self):
-        """导入账号"""
+    def _on_batch_register(self):
+        """批量注册Aug账号"""
         QMessageBox.information(
             self,
             "功能开发中",
-            "Aug账号导入功能正在开发中..."
-        )
-    
-    def _on_export(self):
-        """导出账号"""
-        QMessageBox.information(
-            self,
-            "功能开发中",
-            "Aug账号导出功能正在开发中..."
+            "Aug账号批量注册功能正在开发中...\n\n"
+            "即将支持：\n"
+            "• 批量自动注册Aug账号\n"
+            "• 使用导入的邮箱域名\n"
+            "• 自动验证和保存"
         )
 
