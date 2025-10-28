@@ -615,13 +615,16 @@ class AugRegisterWorker(QThread):
             # ⭐ 固定等待5秒
             self.log_signal.emit(f"  固定等待5秒...")
             time.sleep(5)
+            self.log_signal.emit(f"  等待完成，继续执行...")
             
             # 6. 自动完成授权流程
             self.log_signal.emit(f"\n步骤4: 自动填写授权信息...")
+            self.log_signal.emit(f"  [DEBUG] 开始生成邮箱...")
             
             # ⭐ 生成邮箱（使用配置的域名）
             email = self._generate_email()
             self.log_signal.emit(f"  生成邮箱: {email}")
+            self.log_signal.emit(f"  [DEBUG] 邮箱生成完成，继续查找输入框...")
             
             # ⭐ 查找并填写邮箱输入框
             self.log_signal.emit(f"  正在查找邮箱输入框...")
@@ -645,13 +648,24 @@ class AugRegisterWorker(QThread):
                     continue
             
             if not email_input:
-                self.log_signal.emit(f"  ⚠️ 未找到邮箱输入框，授权页面可能已改版")
-                self.log_signal.emit(f"  💡 浏览器将保持打开，请手动完成授权")
-                return True  # 保持浏览器打开
+                self.log_signal.emit(f"  ⚠️ 未找到邮箱输入框")
+                self.log_signal.emit(f"  [DEBUG] 尝试直接在页面中查找...")
+                # 尝试通过页面HTML查找
+                try:
+                    email_input = tab.ele('input', timeout=3)
+                    if email_input:
+                        self.log_signal.emit(f"  ✅ 找到input元素")
+                except:
+                    pass
+                
+                if not email_input:
+                    self.log_signal.emit(f"  💡 浏览器将保持打开，请手动完成授权")
+                    return True  # 保持浏览器打开
             
             # ⭐ 填写邮箱
-            self.log_signal.emit(f"  填写邮箱...")
+            self.log_signal.emit(f"  填写邮箱: {email}...")
             email_input.input(email)
+            self.log_signal.emit(f"  [DEBUG] 邮箱已输入")
             time.sleep(1)
             
             # ⭐ 处理人机验证（类似Turnstile）
