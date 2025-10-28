@@ -7,10 +7,12 @@ Aug账号管理面板
 
 import sys
 from pathlib import Path
+from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QScrollArea, QGroupBox, QMessageBox
+    QPushButton, QScrollArea, QGroupBox, QMessageBox,
+    QFrame, QGridLayout, QApplication
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -23,6 +25,223 @@ from utils.logger import get_logger
 logger = get_logger("aug_account_panel")
 
 
+class AugAccountCard(QFrame):
+    """Aug账号卡片"""
+    
+    def __init__(self, account_data, parent=None):
+        super().__init__(parent)
+        self.account_data = account_data
+        self.setFrameShape(QFrame.Shape.Box)
+        self.setStyleSheet("""
+            AugAccountCard {
+                background-color: white;
+                border: 2px solid #e0e0e0;
+                border-radius: 12px;
+                padding: 15px;
+            }
+            AugAccountCard:hover {
+                border-color: #3498db;
+                background-color: #f8f9fa;
+            }
+        """)
+        
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        """设置卡片UI"""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(15, 15, 15, 15)
+        
+        # 顶部：API地址和标签
+        top_row = QHBoxLayout()
+        
+        # API地址
+        api_label = QLabel(self.account_data.get('api_url', 'N/A'))
+        api_font = QFont()
+        api_font.setPointSize(13)
+        api_font.setBold(True)
+        api_label.setFont(api_font)
+        top_row.addWidget(api_label)
+        
+        top_row.addStretch()
+        
+        # 个人标签
+        personal_badge = QLabel("👤 个人")
+        personal_badge.setStyleSheet("""
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: bold;
+        """)
+        top_row.addWidget(personal_badge)
+        
+        # 状态标签
+        status = self.account_data.get('status', '正常')
+        if status == '正常':
+            status_badge = QLabel("✅ 正常")
+            status_badge.setStyleSheet("""
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #28a745;
+                border-radius: 12px;
+                padding: 4px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            """)
+        else:
+            status_badge = QLabel("❌ 异常")
+            status_badge.setStyleSheet("""
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #dc3545;
+                border-radius: 12px;
+                padding: 4px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            """)
+        top_row.addWidget(status_badge)
+        
+        layout.addLayout(top_row)
+        
+        # 中间：时间和邮箱
+        info_row = QHBoxLayout()
+        
+        # 时间
+        time_label = QLabel(self.account_data.get('time', 'N/A'))
+        time_label.setStyleSheet("color: #6c757d; font-size: 12px;")
+        info_row.addWidget(time_label)
+        
+        info_row.addSpacing(20)
+        
+        # 邮箱（带复制按钮）
+        email_container = QHBoxLayout()
+        email_label = QLabel(f"📧 {self._mask_email(self.account_data.get('email', 'N/A'))}")
+        email_label.setStyleSheet("color: #495057; font-size: 12px;")
+        email_container.addWidget(email_label)
+        
+        copy_email_btn = QPushButton("📋")
+        copy_email_btn.setFixedSize(24, 24)
+        copy_email_btn.setToolTip("复制完整邮箱")
+        copy_email_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #e9ecef;
+            }
+        """)
+        copy_email_btn.clicked.connect(lambda: self._copy_to_clipboard(self.account_data.get('email', '')))
+        email_container.addWidget(copy_email_btn)
+        
+        info_row.addLayout(email_container)
+        info_row.addStretch()
+        
+        layout.addLayout(info_row)
+        
+        # 分隔线
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setStyleSheet("background-color: #dee2e6;")
+        layout.addWidget(line)
+        
+        # 底部：操作按钮
+        actions_row = QHBoxLayout()
+        actions_row.setSpacing(8)
+        
+        # 按钮数据
+        buttons = [
+            ("🔷", "打开VSCode", self._on_open_vscode, "#0078d4"),
+            ("📋", "复制信息", self._on_copy_info, "#6c757d"),
+            ("🔗", "复制链接", self._on_copy_link, "#6c757d"),
+            ("🔄", "刷新", self._on_refresh, "#ffc107"),
+            ("✏️", "编辑", self._on_edit, "#28a745"),
+            ("🔗", "分享", self._on_share, "#6c757d"),
+            ("🗑️", "删除", self._on_delete, "#dc3545"),
+        ]
+        
+        for icon, tooltip, callback, color in buttons:
+            btn = QPushButton(icon)
+            btn.setFixedSize(36, 36)
+            btn.setToolTip(tooltip)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 8px;
+                    font-size: 16px;
+                }}
+                QPushButton:hover {{
+                    background-color: {color};
+                    color: white;
+                    border-color: {color};
+                }}
+            """)
+            btn.clicked.connect(callback)
+            actions_row.addWidget(btn)
+        
+        actions_row.addStretch()
+        layout.addLayout(actions_row)
+    
+    def _mask_email(self, email):
+        """隐藏邮箱部分字符"""
+        if '@' not in email:
+            return email
+        local, domain = email.split('@', 1)
+        if len(local) > 6:
+            masked = local[:3] + '****' + local[-2:]
+        else:
+            masked = local[:2] + '****'
+        return f"{masked}@{domain}"
+    
+    def _copy_to_clipboard(self, text):
+        """复制到剪贴板"""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
+        logger.info(f"已复制: {text}")
+    
+    def _on_open_vscode(self):
+        """打开VSCode"""
+        QMessageBox.information(self, "功能开发中", "打开VSCode功能开发中...")
+    
+    def _on_copy_info(self):
+        """复制信息"""
+        QMessageBox.information(self, "功能开发中", "复制信息功能开发中...")
+    
+    def _on_copy_link(self):
+        """复制链接"""
+        QMessageBox.information(self, "功能开发中", "复制链接功能开发中...")
+    
+    def _on_refresh(self):
+        """刷新"""
+        QMessageBox.information(self, "功能开发中", "刷新功能开发中...")
+    
+    def _on_edit(self):
+        """编辑"""
+        QMessageBox.information(self, "功能开发中", "编辑功能开发中...")
+    
+    def _on_share(self):
+        """分享"""
+        QMessageBox.information(self, "功能开发中", "分享功能开发中...")
+    
+    def _on_delete(self):
+        """删除"""
+        reply = QMessageBox.question(
+            self,
+            "确认删除",
+            f"确定要删除账号 {self.account_data.get('email', '')} 吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            QMessageBox.information(self, "功能开发中", "删除功能开发中...")
+
+
 class AugAccountPanel(QWidget):
     """Aug账号管理面板"""
     
@@ -33,6 +252,7 @@ class AugAccountPanel(QWidget):
         self.accounts = []  # Aug账号列表
         
         self._setup_ui()
+        self._load_test_data()  # 加载测试数据
     
     def _setup_ui(self):
         """设置UI"""
@@ -76,52 +296,96 @@ class AugAccountPanel(QWidget):
         self.stats_label.setStyleSheet("color: #7f8c8d; font-size: 13px; padding: 5px 0;")
         main_layout.addWidget(self.stats_label)
         
-        # 账号列表区域
-        list_group = QGroupBox("账号列表")
-        list_layout = QVBoxLayout(list_group)
-        
-        # 滚动区域
+        # ⭐ 滚动区域（包含账号卡片网格）
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll_area.setStyleSheet("background-color: transparent;")
         
-        # 账号列表容器
+        # 账号列表容器（使用网格布局）
         self.account_list_widget = QWidget()
-        account_list_layout = QVBoxLayout(self.account_list_widget)
-        account_list_layout.setSpacing(10)
-        account_list_layout.setContentsMargins(10, 10, 10, 10)
-        
-        # 占位符
-        placeholder = QLabel("暂无Aug账号\n\n点击上方'添加账号'按钮添加")
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        placeholder.setStyleSheet("""
-            color: #95a5a6;
-            font-size: 14px;
-            padding: 50px;
-        """)
-        account_list_layout.addWidget(placeholder)
-        
-        account_list_layout.addStretch()
+        self.account_list_widget.setStyleSheet("background-color: transparent;")
+        self.account_grid_layout = QGridLayout(self.account_list_widget)
+        self.account_grid_layout.setSpacing(15)
+        self.account_grid_layout.setContentsMargins(5, 5, 5, 5)
         
         scroll_area.setWidget(self.account_list_widget)
-        list_layout.addWidget(scroll_area)
         
-        main_layout.addWidget(list_group)
+        main_layout.addWidget(scroll_area)
+    
+    def _load_test_data(self):
+        """加载测试数据（演示用）"""
+        # 测试账号数据
+        test_accounts = [
+            {
+                'api_url': 'd14.api.augmentcode.com',
+                'email': 'dic****wg@rommiui.com',
+                'time': '2025/10/27 22:24',
+                'status': '正常'
+            },
+            {
+                'api_url': 'd19.api.augmentcode.com',
+                'email': 'tas****of@rommiui.com',
+                'time': '2025/10/28 09:50',
+                'status': '正常'
+            },
+            {
+                'api_url': 'd10.api.augmentcode.com',
+                'email': 'ala****gg@ymwdes.cn',
+                'time': '2025/10/28 13:05',
+                'status': '正常'
+            },
+            {
+                'api_url': 'd6.api.augmentcode.com',
+                'email': 'yyk****ub@ymwdes.cn',
+                'time': '2025/10/28 13:24',
+                'status': '正常'
+            },
+            {
+                'api_url': 'd3.api.augmentcode.com',
+                'email': 'wta****sv@ymwdes.cn',
+                'time': '2025/10/28 15:08',
+                'status': '正常'
+            },
+            {
+                'api_url': 'd13.api.augmentcode.com',
+                'email': 'icm****vd@ymwdes.cn',
+                'time': '2025/10/28 15:41',
+                'status': '正常'
+            }
+        ]
         
-        # 底部说明
-        info_label = QLabel(
-            "💡 Aug账号管理功能正在开发中\n"
-            "即将支持：添加、导入、导出、刷新等功能"
-        )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("""
-            color: #3498db;
-            font-size: 12px;
-            padding: 10px;
-            background-color: rgba(52, 152, 219, 0.1);
-            border-radius: 5px;
-        """)
-        main_layout.addWidget(info_label)
+        self.accounts = test_accounts
+        self._refresh_account_list()
+    
+    def _refresh_account_list(self):
+        """刷新账号列表显示"""
+        # 清空现有卡片
+        while self.account_grid_layout.count():
+            item = self.account_grid_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # 更新统计
+        self.stats_label.setText(f"共 {len(self.accounts)} 个Aug账号")
+        
+        # 添加账号卡片（每行2列）
+        row = 0
+        col = 0
+        
+        for account in self.accounts:
+            card = AugAccountCard(account)
+            self.account_grid_layout.addWidget(card, row, col)
+            
+            col += 1
+            if col >= 2:  # 每行2列
+                col = 0
+                row += 1
+        
+        # 添加占位符填充剩余空间
+        self.account_grid_layout.setRowStretch(row + 1, 1)
+        
+        logger.info(f"✅ 刷新Aug账号列表: {len(self.accounts)} 个账号")
     
     def _on_add_account(self):
         """添加账号"""
