@@ -110,6 +110,70 @@ class EmailVerificationHandler:
             logger.error(f"❌ 连接测试失败: {e}")
             return False, f"连接失败: {str(e)}"
 
+    def get_emails(self, limit=10):
+        """
+        获取邮件列表（只获取发送到指定账号的邮件）
+        
+        Args:
+            limit: 最多获取的邮件数量
+            
+        Returns:
+            list: 邮件列表，每个邮件包含 from, subject, date, body 等字段
+        """
+        try:
+            logger.info(f"获取邮件列表: {self.account}")
+            
+            # 获取邮件列表
+            url = f"https://tempmail.plus/api/mails?email={self.receiving_email}&limit={limit}&epin={self.epin}"
+            response = self.session.get(url, timeout=15)
+            
+            if response.status_code != 200:
+                logger.error(f"获取邮件失败: HTTP {response.status_code}")
+                return []
+            
+            data = response.json()
+            
+            if not data.get("result"):
+                logger.warning("API返回失败")
+                return []
+            
+            mail_list = data.get("mail_list", [])
+            
+            if not mail_list:
+                logger.info("收件箱为空")
+                return []
+            
+            # 筛选发送到指定账号的邮件
+            filtered_emails = []
+            
+            for mail in mail_list:
+                mail_id = mail.get("mail_id") or mail.get("_id")
+                mail_to = mail.get("to", "").lower()
+                
+                # 只保留发送到当前生成邮箱的邮件
+                if self.account.lower() in mail_to:
+                    # 获取邮件详情
+                    detail_url = f"https://tempmail.plus/api/mails/{mail_id}?email={self.receiving_email}&epin={self.epin}"
+                    detail_response = self.session.get(detail_url, timeout=10)
+                    
+                    if detail_response.status_code == 200:
+                        detail_data = detail_response.json()
+                        if detail_data.get("result"):
+                            filtered_emails.append({
+                                'from': detail_data.get('from', 'N/A'),
+                                'subject': detail_data.get('subject', 'N/A'),
+                                'date': detail_data.get('date', 'N/A'),
+                                'body': detail_data.get('text', ''),
+                                'to': detail_data.get('to', 'N/A')
+                            })
+            
+            logger.info(f"✅ 获取到 {len(filtered_emails)} 封邮件（发送到 {self.account}）")
+            return filtered_emails
+            
+        except Exception as e:
+            logger.error(f"获取邮件列表失败: {e}")
+            return []
+    
     def get_verification_code(self, max_retries=30, retry_interval=1):
         """
         获取验证码，带有重试机制（每秒检查一次）
