@@ -590,11 +590,12 @@ class AugRegisterWorker(QThread):
             
             self.log_signal.emit(f"  ✅ 浏览器已打开")
             
-            # 4. 生成授权链接
-            self.log_signal.emit(f"\n步骤2: 生成授权链接...")
-            state = str(uuid.uuid4())
-            authorize_url = AugmentAuth.generate_authorize_url(state)
+            # 4. 生成授权链接（PKCE流程）
+            self.log_signal.emit(f"\n步骤2: 生成授权链接（PKCE）...")
+            authorize_url, code_verifier, state = AugmentAuth.generate_authorize_url()
             self.log_signal.emit(f"  授权链接: {authorize_url[:80]}...")
+            self.log_signal.emit(f"  code_challenge: 已生成")
+            self.log_signal.emit(f"  state: {state}")
             
             # 5. 访问授权页面
             self.log_signal.emit(f"\n步骤3: 访问授权页面...")

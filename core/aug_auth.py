@@ -2,9 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 Augment Code 授权处理模块
+使用PKCE (Proof Key for Code Exchange) 流程
 """
 
-import uuid
+import hashlib
+import base64
+import secrets
+import random
+import string
 import urllib.parse
 from utils.logger import get_logger
 
@@ -15,38 +20,88 @@ class AugmentAuth:
     """Augment授权处理器"""
     
     @staticmethod
-    def generate_authorize_url(state=None):
+    def generate_code_verifier():
         """
-        生成Augment授权链接
+        生成code_verifier（PKCE）
+        
+        Returns:
+            str: code_verifier (43-128位随机字符串)
+        """
+        # 生成43位随机字符串（base64url安全字符）
+        verifier = secrets.token_urlsafe(32)  # 生成43个字符
+        return verifier
+    
+    @staticmethod
+    def generate_code_challenge(code_verifier):
+        """
+        生成code_challenge（PKCE）
         
         Args:
-            state: 状态参数（可选，用于防CSRF）
+            code_verifier: code_verifier字符串
             
         Returns:
-            str: 授权URL
+            str: code_challenge (SHA256后base64url编码)
         """
-        # 生成随机state（如果未提供）
-        if not state:
-            state = str(uuid.uuid4())
+        # SHA256哈希
+        digest = hashlib.sha256(code_verifier.encode('ascii')).digest()
         
-        # Augment授权参数
+        # Base64 URL编码（去除padding）
+        challenge = base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')
+        
+        return challenge
+    
+    @staticmethod
+    def generate_short_state():
+        """
+        生成短state字符串
+        
+        Returns:
+            str: 短随机state (如 8N20W8_xzj4)
+        """
+        # 生成11位随机字符串（字母+数字+下划线）
+        chars = string.ascii_letters + string.digits + '_'
+        state = ''.join(random.choices(chars, k=11))
+        return state
+    
+    @staticmethod
+    def generate_authorize_url():
+        """
+        生成Augment授权链接（PKCE流程）
+        
+        Returns:
+            tuple: (授权URL, code_verifier, state)
+        """
+        # 1. 生成code_verifier
+        code_verifier = AugmentAuth.generate_code_verifier()
+        
+        # 2. 计算code_challenge
+        code_challenge = AugmentAuth.generate_code_challenge(code_verifier)
+        
+        # 3. 生成短state
+        state = AugmentAuth.generate_short_state()
+        
+        logger.info(f"生成PKCE参数:")
+        logger.info(f"  code_verifier: {code_verifier[:20]}...")
+        logger.info(f"  code_challenge: {code_challenge}")
+        logger.info(f"  state: {state}")
+        
+        # 4. 构建授权参数
         params = {
             'response_type': 'code',
-            'client_id': 'augment',  # Augment的client_id
-            'redirect_uri': 'vscode://augment.augment-vscode/callback',
-            'scope': 'openid email profile',
+            'code_challenge': code_challenge,
+            'client_id': 'v',  # Aug使用的client_id是'v'
             'state': state,
-            'prompt': 'login'  # 强制显示登录页面
+            'prompt': 'login'
         }
         
-        # 构建URL
+        # 5. 构建URL
         base_url = 'https://auth.augmentcode.com/authorize'
         query_string = urllib.parse.urlencode(params)
         authorize_url = f"{base_url}?{query_string}"
         
         logger.info(f"生成授权链接: {authorize_url}")
         
-        return authorize_url
+        return authorize_url, code_verifier, state
     
     @staticmethod
     def generate_push_login_uri(tenant_url, access_token):
