@@ -41,6 +41,52 @@ class AugRegisterWorker(QThread):
         """停止注册"""
         self.is_running = False
     
+    def _generate_email(self):
+        """生成邮箱（使用配置的域名）"""
+        try:
+            from core.email_generator import EmailGenerator
+            from utils.app_paths import get_config_file
+            import json
+            
+            # 读取邮箱配置
+            config_file = get_config_file()
+            if config_file.exists():
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                domain = config.get('email', {}).get('domain', '')
+            else:
+                domain = ''
+            
+            if not domain:
+                # 使用默认域名
+                domain = 'ymwdes.cn'
+                logger.warning(f"未配置邮箱域名，使用默认: {domain}")
+            
+            # 生成纯字母邮箱
+            import random
+            import string
+            random_letters = ''.join(random.choices(string.ascii_lowercase, k=12))
+            
+            # 如果是域名池，随机选择一个
+            if "/" in domain:
+                domains = [d.strip() for d in domain.split("/") if d.strip()]
+                selected_domain = random.choice(domains)
+            else:
+                selected_domain = domain
+            
+            email = f"{random_letters}@{selected_domain}"
+            logger.info(f"生成Aug注册邮箱: {email}")
+            
+            return email
+            
+        except Exception as e:
+            logger.error(f"生成邮箱失败: {e}")
+            # 返回一个默认邮箱
+            import random
+            import string
+            random_letters = ''.join(random.choices(string.ascii_lowercase, k=12))
+            return f"{random_letters}@ymwdes.cn"
+    
     def run(self):
         """执行批量注册"""
         self.log_signal.emit(f"开始批量注册 {self.count} 个Aug账号...\n")
@@ -122,14 +168,80 @@ class AugRegisterWorker(QThread):
             self.log_signal.emit(f"  授权链接: {authorize_url[:80]}...")
             
             # 5. 访问授权页面
-            self.log_signal.emit(f"\n步骤3: 打开授权页面...")
+            self.log_signal.emit(f"\n步骤3: 访问授权页面...")
             tab = browser.latest_tab
             tab.get(authorize_url)
             
-            self.log_signal.emit(f"  ✅ 授权页面已打开")
-            self.log_signal.emit(f"  💡 等待用户完成授权...")
+            import time
+            time.sleep(3)  # 等待页面加载
             
-            # TODO: 监听授权回调
+            self.log_signal.emit(f"  ✅ 授权页面已打开")
+            self.log_signal.emit(f"  当前URL: {tab.url}")
+            
+            # 6. 自动完成授权流程
+            self.log_signal.emit(f"\n步骤4: 自动填写授权信息...")
+            
+            # ⭐ 生成邮箱（使用配置的域名）
+            email = self._generate_email()
+            self.log_signal.emit(f"  生成邮箱: {email}")
+            
+            # ⭐ 查找并填写邮箱输入框
+            self.log_signal.emit(f"  正在查找邮箱输入框...")
+            
+            # Aug授权页面可能的输入框ID/name
+            email_selectors = [
+                '#email',
+                'input[type="email"]',
+                'input[name="email"]',
+                'input[placeholder*="email"]'
+            ]
+            
+            email_input = None
+            for selector in email_selectors:
+                try:
+                    email_input = tab.ele(selector, timeout=2)
+                    if email_input:
+                        self.log_signal.emit(f"  ✅ 找到邮箱输入框")
+                        break
+                except:
+                    continue
+            
+            if not email_input:
+                self.log_signal.emit(f"  ⚠️ 未找到邮箱输入框，授权页面可能已改版")
+                self.log_signal.emit(f"  💡 浏览器将保持打开，请手动完成授权")
+                return True  # 保持浏览器打开
+            
+            # ⭐ 填写邮箱
+            self.log_signal.emit(f"  填写邮箱...")
+            email_input.input(email)
+            time.sleep(1)
+            
+            # ⭐ 查找并点击继续/提交按钮
+            self.log_signal.emit(f"  查找提交按钮...")
+            submit_selectors = [
+                'button[type="submit"]',
+                'button:contains("Continue")',
+                'button:contains("Sign up")',
+                'button:contains("Next")'
+            ]
+            
+            for selector in submit_selectors:
+                try:
+                    submit_btn = tab.ele(selector, timeout=1)
+                    if submit_btn:
+                        self.log_signal.emit(f"  ✅ 找到提交按钮，点击...")
+                        submit_btn.click()
+                        time.sleep(2)
+                        break
+                except:
+                    continue
+            
+            self.log_signal.emit(f"  ✅ 授权流程已启动")
+            self.log_signal.emit(f"  💡 浏览器保持打开，等待邮箱验证...")
+            
+            # TODO: 监听邮箱验证码
+            # TODO: 自动填写验证码
+            # TODO: 完成授权
             # TODO: 获取accessToken
             # TODO: 保存账号信息
             
