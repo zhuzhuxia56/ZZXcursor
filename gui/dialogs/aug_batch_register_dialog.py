@@ -479,6 +479,43 @@ class AugRegisterWorker(QThread):
             self.log_signal.emit(f"  ❌ 填写支付信息异常: {e}")
             return False
     
+    def _save_account_info(self, email, code_data, current_url):
+        """保存Aug账号信息"""
+        try:
+            from core.aug_account_storage import get_aug_storage
+            import re
+            from datetime import datetime
+            
+            # 从URL提取API域名
+            api_url = "N/A"
+            if 'complete-signup' in current_url:
+                # 尝试从URL或其他地方获取API域名
+                # 暂时使用占位符
+                api_url = "d?.api.augmentcode.com"
+            
+            # 构建账号数据
+            account_data = {
+                'api_url': api_url,
+                'email': email,
+                'auth_code': code_data,
+                'time': datetime.now().strftime('%Y/%m/%d %H:%M'),
+                'status': '正常',
+                'access_token': '',  # 待填充
+                'notes': f'批量注册于 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+            }
+            
+            # 保存到存储
+            storage = get_aug_storage()
+            if storage.add_account(account_data):
+                self.log_signal.emit(f"  ✅ 账号信息已保存")
+                logger.info(f"✅ 保存Aug账号: {email}")
+            else:
+                self.log_signal.emit(f"  ⚠️ 账号信息保存失败")
+                
+        except Exception as e:
+            logger.error(f"保存账号信息失败: {e}")
+            self.log_signal.emit(f"  ❌ 保存失败: {e}")
+    
     def run(self):
         """执行批量注册"""
         self.log_signal.emit(f"开始批量注册 {self.count} 个Aug账号...\n")
@@ -692,6 +729,9 @@ class AugRegisterWorker(QThread):
                             
                             if code_data:
                                 self.log_signal.emit(f"  ✅ 获取到code: {code_data[:50]}...")
+                                
+                                # ⭐ 保存账号信息（包含code和邮箱）
+                                self._save_account_info(email, code_data, current_url)
                                 
                                 # 11. 返回并绑卡
                                 self.log_signal.emit(f"\n步骤11: 返回绑卡...")

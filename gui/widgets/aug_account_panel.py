@@ -12,7 +12,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QGroupBox, QMessageBox,
-    QFrame, QGridLayout, QApplication
+    QFrame, QGridLayout, QApplication, QDialog
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -28,9 +28,11 @@ logger = get_logger("aug_account_panel")
 class AugAccountCard(QFrame):
     """Aug账号卡片"""
     
-    def __init__(self, account_data, parent=None):
+    def __init__(self, account_data, account_index, parent=None):
         super().__init__(parent)
         self.account_data = account_data
+        self.account_index = account_index  # 保存索引用于更新
+        self.parent_panel = parent
         self.setFrameShape(QFrame.Shape.Box)
         
         # ⭐ 限制卡片最大宽度
@@ -228,8 +230,33 @@ class AugAccountCard(QFrame):
         QMessageBox.information(self, "功能开发中", "刷新功能开发中...")
     
     def _on_edit(self):
-        """编辑"""
-        QMessageBox.information(self, "功能开发中", "编辑功能开发中...")
+        """编辑账号信息"""
+        try:
+            from gui.dialogs.aug_account_edit_dialog import AugAccountEditDialog
+            
+            # 打开编辑对话框
+            dialog = AugAccountEditDialog(self.account_data, self)
+            
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                # 获取编辑后的数据
+                updated_data = dialog.get_data()
+                
+                # 保存到存储
+                from core.aug_account_storage import get_aug_storage
+                storage = get_aug_storage()
+                
+                if storage.update_account(self.account_index, updated_data):
+                    QMessageBox.information(self, "成功", "账号信息已更新！")
+                    
+                    # 通知父面板刷新
+                    if self.parent_panel:
+                        self.parent_panel._refresh_account_list()
+                else:
+                    QMessageBox.warning(self, "失败", "保存账号信息失败！")
+                    
+        except Exception as e:
+            logger.error(f"编辑账号失败: {e}")
+            QMessageBox.critical(self, "错误", f"编辑账号时出错：\n\n{e}")
     
     def _on_share(self):
         """分享"""
@@ -314,49 +341,20 @@ class AugAccountPanel(QWidget):
         main_layout.addWidget(scroll_area)
     
     def _load_test_data(self):
-        """加载测试数据（演示用）"""
-        # 测试账号数据
-        test_accounts = [
-            {
-                'api_url': 'd14.api.augmentcode.com',
-                'email': 'dic****wg@rommiui.com',
-                'time': '2025/10/27 22:24',
-                'status': '正常'
-            },
-            {
-                'api_url': 'd19.api.augmentcode.com',
-                'email': 'tas****of@rommiui.com',
-                'time': '2025/10/28 09:50',
-                'status': '正常'
-            },
-            {
-                'api_url': 'd10.api.augmentcode.com',
-                'email': 'ala****gg@ymwdes.cn',
-                'time': '2025/10/28 13:05',
-                'status': '正常'
-            },
-            {
-                'api_url': 'd6.api.augmentcode.com',
-                'email': 'yyk****ub@ymwdes.cn',
-                'time': '2025/10/28 13:24',
-                'status': '正常'
-            },
-            {
-                'api_url': 'd3.api.augmentcode.com',
-                'email': 'wta****sv@ymwdes.cn',
-                'time': '2025/10/28 15:08',
-                'status': '正常'
-            },
-            {
-                'api_url': 'd13.api.augmentcode.com',
-                'email': 'icm****vd@ymwdes.cn',
-                'time': '2025/10/28 15:41',
-                'status': '正常'
-            }
-        ]
-        
-        self.accounts = test_accounts
-        self._refresh_account_list()
+        """加载Aug账号数据"""
+        try:
+            from core.aug_account_storage import get_aug_storage
+            
+            storage = get_aug_storage()
+            self.accounts = storage.get_all_accounts()
+            
+            logger.info(f"✅ 加载了 {len(self.accounts)} 个Aug账号")
+            self._refresh_account_list()
+            
+        except Exception as e:
+            logger.error(f"加载Aug账号失败: {e}")
+            self.accounts = []
+            self._refresh_account_list()
     
     def _refresh_account_list(self):
         """刷新账号列表显示"""
@@ -373,8 +371,8 @@ class AugAccountPanel(QWidget):
         row = 0
         col = 0
         
-        for account in self.accounts:
-            card = AugAccountCard(account)
+        for index, account in enumerate(self.accounts):
+            card = AugAccountCard(account, index, self)  # 传递索引和父面板引用
             self.account_grid_layout.addWidget(card, row, col)
             
             col += 1
