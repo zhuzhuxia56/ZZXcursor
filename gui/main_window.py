@@ -416,9 +416,17 @@ class MainWindow(QMainWindow):
         self.main_tabs = tabs  # 保存引用
         self.current_tab_index = 0  # 记录当前标签页索引
         
-        # 账号管理标签页（左右布局）
+        # Cursor账号管理标签页（左右布局）
         account_tab = self._create_account_tab()
-        tabs.addTab(account_tab, "📋 账号管理")
+        tabs.addTab(account_tab, "📋 Cursor账号管理")
+        
+        # ⭐ Aug账号管理标签页
+        try:
+            from gui.widgets.aug_account_panel import AugAccountPanel
+            self.aug_panel = AugAccountPanel()
+            tabs.addTab(self.aug_panel, "🔷 Aug账号管理")
+        except Exception as e:
+            logger.error(f"Aug账号管理面板加载失败: {e}")
         
         # 邮箱配置标签页
         from gui.widgets.email_test_panel import EmailTestPanel
